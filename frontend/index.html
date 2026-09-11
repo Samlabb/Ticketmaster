@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PulsePass | Live Events</title>
+    <meta
+      name="description"
+      content="Discover concerts, sports, festivals, theater and more with PulsePass."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div class="container nav-wrap">
+          <div class="brand-block">
+            <div class="brand-mark">P</div>
+            <span>PulsePass</span>
+          </div>
+
+          <nav class="main-nav" aria-label="Main navigation">
+            <a href="#">Concerts</a>
+            <a href="#">Sports</a>
+            <a href="#">Arts</a>
+            <a href="#">Festivals</a>
+            <a href="#">VIP</a>
+          </nav>
+
+          <div class="nav-actions">
+            <button class="ghost-btn" id="authToggleBtn">Sign in</button>
+            <button class="primary-btn">Sell tickets</button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="hero-overlay"></div>
+          <div class="container hero-content">
+            <div class="hero-copy">
+              <span class="eyebrow">Trending this week</span>
+              <h1>Find your next unforgettable night.</h1>
+              <p>
+                Discover live music, sports, festivals, comedy and premium experiences
+                across your city and beyond.
+              </p>
+
+              <form class="search-panel" id="searchForm" aria-label="Event search form">
+                <div class="field">
+                  <label>Artist</label>
+                  <input id="artistFilter" type="text" placeholder="Search artist" value="" />
+                </div>
+
+                <div class="field">
+                  <label>Location</label>
+                  <input id="locationFilter" type="text" placeholder="City or venue" value="" />
+                </div>
+
+                <div class="field">
+                  <label>Date</label>
+                  <input id="dateFilter" type="date" value="" />
+                </div>
+
+                <button type="submit" class="search-btn">Search</button>
+              </form>
+
+              <div class="hero-badges">
+                <span>Live now</span>
+                <span>Secure checkout</span>
+                <span>Verified events</span>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <section class="categories container">
+          <div class="section-header inline-header">
+            <div>
+              <span class="eyebrow dark">Browse by category</span>
+              <h2>What are you into?</h2>
+            </div>
+            <a href="#">See all</a>
+          </div>
+
+          <div class="chips" aria-label="Event categories">
+            <button class="chip active">Rock</button>
+            <button class="chip">DJ & Dance</button>
+            <button class="chip">Sports</button>
+            <button class="chip">Comedy</button>
+            <button class="chip">Food</button>
+            <button class="chip">Family</button>
+            <button class="chip">Tech</button>
+          </div>
+        </section>
+
+        <section class="container section-block">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow dark">Popular now</span>
+              <h2>Events worth leaving the house for</h2>
+            </div>
+            <a href="#">View all events</a>
+          </div>
+
+          <div class="event-grid">
+            <article class="event-card">
+              <div class="event-image image-one"></div>
+              <div class="event-body">
+                <div class="event-meta-row">
+                  <span class="date-badge">SEP 18</span>
+                  <span class="location">New York</span>
+                </div>
+                <h3>Midnight Echo Tour</h3>
+                <p>Madison Square Garden</p>
+                <div class="event-footer">
+                  <span class="tag">Rock</span>
+                  <strong>From $65</strong>
+                </div>
+              </div>
+            </article>
+
+            <article class="event-card">
+              <div class="event-image image-two"></div>
+              <div class="event-body">
+                <div class="event-meta-row">
+                  <span class="date-badge">SEP 20</span>
+                  <span class="location">Los Angeles</span>
+                </div>
+                <h3>City Lights Gala</h3>
+                <p>Hollywood Bowl</p>
+                <div class="event-footer">
+                  <span class="tag">Music</span>
+                  <strong>From $92</strong>
+                </div>
+              </div>
+            </article>
+
+            <article class="event-card">
+              <div class="event-image image-three"></div>
+              <div class="event-body">
+                <div class="event-meta-row">
+                  <span class="date-badge">SEP 22</span>
+                  <span class="location">Chicago</span>
+                </div>
+                <h3>Champions League Night</h3>
+                <p>Wrigley Field</p>
+                <div class="event-footer">
+                  <span class="tag">Sports</span>
+                  <strong>From $120</strong>
+                </div>
+              </div>
+            </article>
+
+            <article class="event-card">
+              <div class="event-image image-four"></div>
+              <div class="event-body">
+                <div class="event-meta-row">
+                  <span class="date-badge">SEP 24</span>
+                  <span class="location">Miami</span>
+                </div>
+                <h3>Sunset Sessions</h3>
+                <p>Bayfront Park</p>
+                <div class="event-footer">
+                  <span class="tag">Festival</span>
+                  <strong>From $48</strong>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="container spotlight section-block">
+          <div class="spotlight-banner">
+            <div class="spotlight-copy">
+              <span class="eyebrow light">This weekend</span>
+              <h2>Experience the biggest live event of the season.</h2>
+              <p>
+                Premium access, exclusive lounge experiences, and unforgettable stage moments.
+              </p>
+              <div class="spotlight-actions">
+                <button class="primary-btn">Explore tickets</button>
+                <button class="ghost-btn light">View lineup</button>
+              </div>
+            </div>
+            <div class="spotlight-stats">
+              <div>
+                <strong>28k+</strong>
+                <span>Attendees</span>
+              </div>
+              <div>
+                <strong>12</strong>
+                <span>Artists</span>
+              </div>
+              <div>
+                <strong>4.9</strong>
+                <span>Rating</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="container section-block">
+          <div class="section-header">
+            <div>
+              <span class="eyebrow dark">Trending in your city</span>
+              <h2>Fresh picks for tonight</h2>
+            </div>
+            <a href="#">See more</a>
+          </div>
+
+          <div class="small-cards">
+            <article class="small-card">
+              <div class="small-thumb image-five"></div>
+              <div>
+                <span>Tonight • 8:00 PM</span>
+                <h3>Neon Bloom</h3>
+                <p>Brooklyn Mirage</p>
+              </div>
+            </article>
+
+            <article class="small-card">
+              <div class="small-thumb image-six"></div>
+              <div>
+                <span>Fri • 7:30 PM</span>
+                <h3>Comedy Nights</h3>
+                <p>The Stand</p>
+              </div>
+            </article>
+
+            <article class="small-card">
+              <div class="small-thumb image-seven"></div>
+              <div>
+                <span>Sun • 6:00 PM</span>
+                <h3>Open Air Cinema</h3>
+                <p>Hudson Yard</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="benefits">
+          <div class="container benefits-grid">
+            <div class="benefit-item">
+              <div class="benefit-icon">✓</div>
+              <div>
+                <h3>Secure checkout</h3>
+                <p>Protected payments and instant confirmation.</p>
+              </div>
+            </div>
+
+            <div class="benefit-item">
+              <div class="benefit-icon">★</div>
+              <div>
+                <h3>Verified events</h3>
+                <p>Only trusted organizers and official listings.</p>
+              </div>
+            </div>
+
+            <div class="benefit-item">
+              <div class="benefit-icon">⚡</div>
+              <div>
+                <h3>Instant delivery</h3>
+                <p>Your tickets arrive right after purchase.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <div class="container footer-grid">
+          <div>
+            <div class="brand-block footer-brand">
+              <div class="brand-mark">P</div>
+              <span>PulsePass</span>
+            </div>
+            <p>Live experiences, unforgettable nights, and trusted ticketing.</p>
+          </div>
+
+          <div>
+            <h4>Popular</h4>
+            <ul>
+              <li><a href="#">Concerts</a></li>
+              <li><a href="#">Sports</a></li>
+              <li><a href="#">Festivals</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>Support</h4>
+            <ul>
+              <li><a href="#">Help Center</a></li>
+              <li><a href="#">Contact</a></li>
+              <li><a href="#">Refund policy</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>Company</h4>
+            <ul>
+              <li><a href="#">About</a></li>
+              <li><a href="#">Careers</a></li>
+              <li><a href="#">Advertise</a></li>
+            </ul>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <div class="modal hidden" id="authModal" aria-hidden="true">
+      <div class="modal-backdrop" data-close="auth"></div>
+      <div class="modal-panel auth-panel">
+        <button class="close-btn" data-close="auth" aria-label="Close">×</button>
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-view="login" type="button">Sign in</button>
+          <button class="auth-tab" data-auth-view="register" type="button">Register</button>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <div class="field-group hidden" id="registerNameField">
+            <label>Full name</label>
+            <input type="text" id="registerName" name="fullName" placeholder="John Smith" />
+          </div>
+          <div class="field-group">
+            <label>Email</label>
+            <input type="email" id="authEmail" name="email" placeholder="you@example.com" required />
+          </div>
+          <div class="field-group">
+            <label>Password</label>
+            <input type="password" id="authPassword" name="password" placeholder="********" required />
+          </div>
+          <button type="submit" class="primary-btn full-width" id="authSubmitBtn">Sign in</button>
+        </form>
+
+        <p id="authStatus" class="auth-status"></p>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="profileModal" aria-hidden="true">
+      <div class="modal-backdrop" data-close="profile"></div>
+      <div class="modal-panel profile-panel">
+        <button class="close-btn" data-close="profile" aria-label="Close">×</button>
+        <div class="profile-header">
+          <div class="profile-avatar">P</div>
+          <div>
+            <span class="eyebrow dark">Profile</span>
+            <h3 id="profileName">User</h3>
+          </div>
+        </div>
+
+        <div class="profile-meta">
+          <div>
+            <span>Email</span>
+            <strong id="profileEmail">—</strong>
+          </div>
+          <div>
+            <span>Member since</span>
+            <strong id="profileSince">—</strong>
+          </div>
+        </div>
+
+        <div class="profile-orders-block">
+          <div class="profile-orders-header">
+            <h4>My orders</h4>
+            <button type="button" class="ghost-btn" id="profileLogoutBtn">Logout</button>
+          </div>
+          <div id="profileOrders" class="profile-orders"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="eventModal" aria-hidden="true">
+      <div class="modal-backdrop" data-close="event"></div>
+      <div class="modal-panel event-modal-panel">
+        <button class="close-btn" data-close="event" aria-label="Close">×</button>
+        <div class="event-modal-hero" id="modalHero"></div>
+        <div class="modal-body">
+          <div>
+            <span class="eyebrow dark" id="modalTag">Concert</span>
+            <h3 id="modalTitle">Event title</h3>
+            <p id="modalMeta">Venue • date</p>
+            <p id="modalDescription">Event description</p>
+          </div>
+
+          <div class="seat-picker-wrapper">
+            <div class="seat-picker-header">
+              <strong>Select your seat</strong>
+              <span id="selectedSeatLabel">No seat selected</span>
+            </div>
+            <div class="seat-stage">Stage</div>
+            <div id="seatMap" class="seat-map"></div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="ghost-btn" data-close="event">Close</button>
+            <button class="primary-btn" id="buyTicketBtn">Buy ticket</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="paymentModal" aria-hidden="true">
+      <div class="modal-backdrop" data-close="payment"></div>
+      <div class="modal-panel payment-panel">
+        <button class="close-btn" data-close="payment" aria-label="Close">×</button>
+        <h3>Payment details</h3>
+        <form id="paymentForm" class="payment-form">
+          <div class="field-group">
+            <label>Cardholder name</label>
+            <input type="text" name="cardName" placeholder="John Smith" required />
+          </div>
+          <div class="field-group">
+            <label>Card number</label>
+            <input id="cardNumber" type="text" name="cardNumber" placeholder="4242 4242 4242 4242" maxlength="19" required />
+          </div>
+          <div class="card-row">
+            <div class="field-group">
+              <label>Expiry</label>
+              <input id="expiry" type="text" name="expiry" placeholder="MM/YY" maxlength="5" required />
+            </div>
+            <div class="field-group">
+              <label>CVC</label>
+              <input id="cvc" type="text" name="cvc" placeholder="123" maxlength="4" required />
+            </div>
+          </div>
+          <div class="payment-summary">
+            <span>Selected ticket</span>
+            <strong id="paymentSummary">A12 • $0</strong>
+          </div>
+          <button type="submit" class="primary-btn full-width">Pay now</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
