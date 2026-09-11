@@ -1,0 +1,33 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: booking-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ticketing_db
+    username: admin
+    password: admin
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: booking-service-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: "paymentSucceeded:com.ticket.dto.PaymentSucceededEvent,paymentFailed:com.ticket.dto.PaymentFailedEvent"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
