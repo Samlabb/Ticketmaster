@@ -1,5 +1,6 @@
 package com.ticket.event.application;
 
+import com.ticket.dto.EventDeletedEvent;
 import com.ticket.dto.SeatInfo;
 import com.ticket.dto.CreatedEvent;
 import com.ticket.event.domain.Event;
@@ -45,7 +46,8 @@ public class EventService {
 
         event.delete();
 
-        return event.getId();
+        kafkaProducer.publishEventDeleted(new EventDeletedEvent(event.getId(), event.getDeletedAt()));
 
+        return event.getId();
     }
 }

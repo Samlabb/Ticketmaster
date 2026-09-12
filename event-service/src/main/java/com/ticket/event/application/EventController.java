@@ -32,7 +32,7 @@ public class EventController {
             @RequestParam(required = false) String location,
             @RequestParam(required = false) String date
     ) {
-        List<EventResponse> events = eventRepository.findAll().stream()
+        List<EventResponse> events = eventRepository.findAllActive().stream()
                 .filter(event -> artist == null || artist.isBlank() || event.getArtist().toLowerCase().contains(artist.toLowerCase()))
                 .filter(event -> location == null || location.isBlank() || event.getLocation().toLowerCase().contains(location.toLowerCase()))
                 .filter(event -> date == null || date.isBlank() || event.getEventDate().toLocalDate().toString().equals(date))
@@ -51,5 +51,10 @@ public class EventController {
                 request.seats()
         );
         return ResponseEntity.ok(eventId);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<UUID> deleteEvent(@PathVariable UUID id) {
+        return ResponseEntity.ok(eventService.deleteEvent(id));
     }
 }
