@@ -49,6 +49,9 @@ public class Booking {
     public String getSeatRow() {
         return seatRow;
     }
+    public String getUserId() {
+        return userId;
+    }
 
     public Integer getSeatNumber() {
         return seatNumber;
