@@ -32,7 +32,7 @@ class PaymentResultConsumerTest {
     void shouldMarkBookingPaidAndSeatSoldAfterSuccessfulPayment() {
         UUID eventId = UUID.randomUUID();
         UUID bookingId = UUID.randomUUID();
-        Booking booking = Booking.create(eventId, "user-123123", "A", 4);
+        Booking booking = Booking.create(eventId, "user-123123", "A", 4, 5000.0);
         EventSeat seat = EventSeat.createProjection(eventId, "A", 4, 5000.0);
         seat.markAsReserved();
 
@@ -53,7 +53,7 @@ class PaymentResultConsumerTest {
     void shouldCancelBookingAndReleaseSeatAfterFailedPayment() {
         UUID eventId = UUID.randomUUID();
         UUID bookingId = UUID.randomUUID();
-        Booking booking = Booking.create(eventId, "user-123123", "A", 5);
+        Booking booking = Booking.create(eventId, "user-123123", "A", 5, 5000.0);
         EventSeat seat = EventSeat.createProjection(eventId, "A", 5, 5000.0);
         seat.markAsReserved();
 

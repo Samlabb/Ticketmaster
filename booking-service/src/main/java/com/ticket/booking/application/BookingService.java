@@ -63,7 +63,7 @@ public class BookingService {
 
             seat.markAsReserved();
             eventSeatRepository.save(seat);
-            Booking booking = Booking.create(eventId, userId, seatRow, seatNumber);
+            Booking booking = Booking.create(eventId, userId, seatRow, seatNumber, seat.getPrice());
             Booking savedBooking = bookingRepository.save(booking);
 
             BookingCreatedEvent kafkaEvent = new BookingCreatedEvent(

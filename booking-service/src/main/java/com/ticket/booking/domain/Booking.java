@@ -16,6 +16,7 @@ public class Booking {
     private String userId;
     private String seatRow;
     private Integer seatNumber;
+    private Double price;
 
     @Enumerated(EnumType.STRING)
     private BookingStatus status;
@@ -25,13 +26,14 @@ public class Booking {
 
     protected Booking() {}
 
-    public static Booking create(UUID eventId, String userId, String seatRow, Integer seatNumber) {
+    public static Booking create(UUID eventId, String userId, String seatRow, Integer seatNumber, Double price) {
         Booking booking = new Booking();
         booking.id = UUID.randomUUID();
         booking.eventId = eventId;
         booking.userId = userId;
         booking.seatRow = seatRow;
         booking.seatNumber = seatNumber;
+        booking.price = price;
         booking.status = BookingStatus.RESERVED;
         booking.createdAt = LocalDateTime.now();
         booking.expiresAt = LocalDateTime.now().plusMinutes(15);
@@ -46,15 +48,20 @@ public class Booking {
         return eventId;
     }
 
-    public String getSeatRow() {
-        return seatRow;
-    }
     public String getUserId() {
         return userId;
     }
 
+    public String getSeatRow() {
+        return seatRow;
+    }
+
     public Integer getSeatNumber() {
         return seatNumber;
+    }
+
+    public Double getPrice() {
+        return price;
     }
 
     public void setStatus(BookingStatus status){

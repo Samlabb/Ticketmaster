@@ -10,7 +10,6 @@ import com.ticket.booking.infrastructure.EventSeatRepository;
 import com.ticket.booking.infrastructure.TicketReturnProducer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -50,7 +49,7 @@ class BookingServiceTest {
     void shouldReserveSeatAndPublishBookingEvent() {
         UUID eventId = UUID.randomUUID();
         EventSeat seat = EventSeat.createProjection(eventId, "A", 1, 5000.0);
-        Booking savedBooking = Booking.create(eventId, "user-1", "A", 1);
+        Booking savedBooking = Booking.create(eventId, "user-1", "A", 1, 5000.0);
 
         when(redisLockService.tryLock(any(), eq("user-1"), any())).thenReturn(true);
         when(eventSeatRepository.findByEventIdAndSeatRowAndSeatNumber(eventId, "A", 1))
@@ -68,7 +67,7 @@ class BookingServiceTest {
     @Test
     void shouldReturnPaidBookingAndPublishCompensationEvent() {
         UUID eventId = UUID.randomUUID();
-        Booking booking = Booking.create(eventId, "user-1", "A", 2);
+        Booking booking = Booking.create(eventId, "user-1", "A", 2, 5000.0);
         EventSeat seat = EventSeat.createProjection(eventId, "A", 2, 5000.0);
         seat.markAsReserved();
         seat.markAsSold();

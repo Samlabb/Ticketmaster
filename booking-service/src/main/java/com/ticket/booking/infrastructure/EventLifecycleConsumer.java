@@ -63,8 +63,6 @@ public class EventLifecycleConsumer {
 
     private void handleDeleted(EventDeletedEvent event) {
         List<EventSeat> seats = eventSeatRepository.findAllByEventId(event.eventId());
-        Map<String, EventSeat> seatByKey = seats.stream()
-                .collect(Collectors.toMap(seat -> seatKey(seat.getSeatRow(), seat.getSeatNumber()), Function.identity()));
 
         List<Booking> activeBookings = bookingRepository.findByEventIdAndStatusIn(
                 event.eventId(), List.of(BookingStatus.RESERVED, BookingStatus.PAID));
@@ -75,18 +73,15 @@ public class EventLifecycleConsumer {
             bookingRepository.save(booking);
 
             if (previousStatus == BookingStatus.PAID) {
-                EventSeat seat = seatByKey.get(seatKey(booking.getSeatRow(), booking.getSeatNumber()));
-                double amount = seat != null ? seat.getPrice() : 0.0;
-
                 refundProducer.publish(new RefundRequestedEvent(
-                        booking.getId(), event.eventId(), booking.getUserId(), amount));
+                        booking.getId(), event.eventId(), booking.getUserId(), booking.getPrice()));
 
                 ticketReturnProducer.publish(new TicketReturnedEvent(
                         event.eventId(), booking.getUserId(), booking.getSeatRow(), booking.getSeatNumber()));
 
-                log.info("Возврат средств по брони {} на сумму {} сделан", booking.getId(), amount);
+                log.info("Возврат средств по брони {} на сумму {} инициирован (мероприятие удалено)", booking.getId(), booking.getPrice());
             } else {
-                log.info("Бронь {} отменена без возврата средств (потому что статус PAID) ", booking.getId());
+                log.info("Бронь {} отменена без возврата средств (оплата не была завершена)", booking.getId());
             }
         }
 
@@ -94,7 +89,5 @@ public class EventLifecycleConsumer {
         log.info("Удалена проекция мест ({} шт.) для мероприятия {}", seats.size(), event.eventId());
     }
 
-    private String seatKey(String row, Integer seatNumber) {
-        return row + "-" + seatNumber;
-    }
+
 }
