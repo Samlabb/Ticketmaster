@@ -5,9 +5,9 @@ spring:
   application:
     name: booking-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/ticketing_db
-    username: admin
-    password: admin
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:ticketing_db}
+    username: ${POSTGRES_USER:admin}
+    password: ${POSTGRES_PASSWORD:admin}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

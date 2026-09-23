@@ -1,7 +1,9 @@
 package com.ticket.user.application;
 
 import com.ticket.user.domain.OrderHistoryItem;
+import com.ticket.security.Role;
 import com.ticket.user.domain.UserProfile;
+import com.ticket.user.infrastructure.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,9 +18,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final JwtService jwtService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, JwtService jwtService) {
         this.userService = userService;
+        this.jwtService = jwtService;
     }
 
     public record RegisterRequest(String email, String fullName, String password) {}
@@ -26,6 +30,7 @@ public class UserController {
     public record RefreshRequest(String refreshToken) {}
     public record OrderRequest(UUID userId, UUID eventId, String eventName, String seatLabel, Double totalPrice) {}
     public record ReturnOrderRequest(UUID userId, UUID eventId, String seatLabel) {}
+    public record ChangeRoleRequest(String role) {}
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest request) {
@@ -127,6 +132,37 @@ public class UserController {
                 "userId", request.userId().toString(),
                 "eventId", request.eventId().toString(),
                 "seatLabel", request.seatLabel()
+        ));
+    }
+
+    @PutMapping("/{userId}/role")
+    public ResponseEntity<Map<String, Object>> changeRole(
+            @PathVariable UUID userId,
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody ChangeRoleRequest request
+    ) {
+        String token = authorizationHeader.replaceFirst("(?i)^Bearer ", "");
+
+        if (!jwtService.isTokenValid(token) || jwtService.extractRole(token) != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "error", "Только администратор может изменять роли пользователей"
+            ));
+        }
+
+        UUID actingAdminId = UUID.fromString(jwtService.extractUserId(token));
+        Role newRole;
+        try {
+            newRole = Role.valueOf(request.role().toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Некорректная роль: " + request.role()));
+        }
+
+        UserProfile updatedUser = userService.changeRole(actingAdminId, userId, newRole);
+
+        return ResponseEntity.ok(Map.of(
+                "id", updatedUser.getId().toString(),
+                "email", updatedUser.getEmail(),
+                "role", updatedUser.getRole().name()
         ));
     }
 }

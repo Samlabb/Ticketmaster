@@ -1,7 +1,10 @@
 package com.ticket.user.application;
 
+import com.ticket.user.domain.AdminAuditLog;
 import com.ticket.user.domain.OrderHistoryItem;
+import com.ticket.security.Role;
 import com.ticket.user.domain.UserProfile;
+import com.ticket.user.infrastructure.AdminAuditLogRepository;
 import com.ticket.user.infrastructure.JwtService;
 import com.ticket.user.infrastructure.OrderHistoryRepository;
 import com.ticket.user.infrastructure.UserRepository;
@@ -17,15 +20,18 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final AdminAuditLogRepository adminAuditLogRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
     public UserService(UserRepository userRepository,
                        OrderHistoryRepository orderHistoryRepository,
+                       AdminAuditLogRepository adminAuditLogRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService) {
         this.userRepository = userRepository;
         this.orderHistoryRepository = orderHistoryRepository;
+        this.adminAuditLogRepository = adminAuditLogRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
@@ -66,11 +72,11 @@ public class UserService {
     }
 
     public String generateAccessToken(UserProfile user) {
-        return jwtService.generateAccessToken(user.getId(), user.getEmail());
+        return jwtService.generateAccessToken(user.getId(), user.getEmail(), user.getRole());
     }
 
     public String generateRefreshToken(UserProfile user) {
-        return jwtService.generateRefreshToken(user.getId(), user.getEmail());
+        return jwtService.generateRefreshToken(user.getId(), user.getEmail(), user.getRole());
     }
 
     public String refreshAccessToken(String refreshToken) {
@@ -104,5 +110,25 @@ public class UserService {
     @Transactional
     public void removeOrder(UUID userId, UUID eventId, String seatLabel) {
         orderHistoryRepository.deleteByUser_IdAndEventIdAndSeatLabel(userId, eventId, seatLabel);
+    }
+
+    @Transactional
+    public UserProfile changeRole(UUID actingAdminId, UUID targetUserId, Role newRole) {
+        UserProfile actingAdmin = findById(actingAdminId);
+        if (actingAdmin.getRole() != Role.ADMIN) {
+            throw new IllegalArgumentException("Только администратор может изменять роли");
+        }
+
+        UserProfile targetUser = findById(targetUserId);
+        Role previousRole = targetUser.getRole();
+        targetUser.setRole(newRole);
+        userRepository.save(targetUser);
+
+        adminAuditLogRepository.save(AdminAuditLog.roleChanged(
+                actingAdmin.getId(), actingAdmin.getEmail(),
+                targetUser.getId(), targetUser.getEmail(),
+                previousRole, newRole));
+
+        return targetUser;
     }
 }
