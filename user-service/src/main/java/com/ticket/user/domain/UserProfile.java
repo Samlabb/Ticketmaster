@@ -1,5 +1,6 @@
 package com.ticket.user.domain;
 
+import com.ticket.security.Role;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,10 @@ public class UserProfile {
     @Column(nullable = false)
     private String fullName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -32,6 +37,7 @@ public class UserProfile {
         this.email = email;
         this.password = password;
         this.fullName = fullName;
+        this.role = Role.USER;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -49,6 +55,14 @@ public class UserProfile {
 
     public String getFullName() {
         return fullName;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
     }
 
     public LocalDateTime getCreatedAt() {
