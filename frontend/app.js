@@ -1202,7 +1202,6 @@ async function ticketReturnClicked(event, row, seatNumber) {
       },
       body: JSON.stringify({
         eventId: event.id,
-        userId: currentUser.id,
         seatRow: row,
         seatNumber: Number(seatNumber)
       })
@@ -1766,18 +1765,16 @@ document.addEventListener(
                 const results = [];
 
                 for (const paymentSeat of paymentSeats) {
-                  const userId = currentUser?.id || 'frontend-user';
-              const accessToken = currentUser?.accessToken;
+                  const accessToken = await ensureValidAccessToken();
 
-              const bookingResponse = await fetch(`${BOOKING_API_BASE}/api/bookings`, {
+                  const bookingResponse = await fetch(`${BOOKING_API_BASE}/api/bookings`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
-                      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+                      'Authorization': `Bearer ${accessToken}`
                     },
                     body: JSON.stringify({
                       eventId: paymentEvent.id,
-                      userId,
                       seatRow: paymentSeat.row,
                       seatNumber: paymentSeat.seatNumber
                     })
@@ -1949,51 +1946,31 @@ document.addEventListener(
     }
 );
 
-async function pollBookingStatus(
-    bookingId
-) {
-  const deadline =
-      Date.now() + 20000;
+async function pollBookingStatus(bookingId) {
+  const deadline = Date.now() + 20000;
 
-  while (
-      Date.now() < deadline
-      ) {
-
+  while (Date.now() < deadline) {
     try {
-      const response =
-          await fetch(
-              `${BOOKING_API_BASE}/api/bookings/${bookingId}/status`
-          );
+      const accessToken = await ensureValidAccessToken();
+      const response = await fetch(
+          `${BOOKING_API_BASE}/api/bookings/${bookingId}/status`,
+          { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
 
       if (!response.ok) {
         return 'PENDING';
       }
 
-      const payload =
-          await response.json();
+      const payload = await response.json();
 
-      if (
-          payload.status === 'PAID' ||
-          payload.status === 'CANCELLED'
-      ) {
+      if (payload.status === 'PAID' || payload.status === 'CANCELLED') {
         return payload.status;
       }
-
     } catch (error) {
-
-      console.error(
-          'Status poll error:',
-          error
-      );
+      console.error('Status poll error:', error);
     }
 
-    await new Promise(
-        (resolve) =>
-            setTimeout(
-                resolve,
-                1000
-            )
-    );
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   return 'PENDING';

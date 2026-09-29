@@ -9,9 +9,11 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@CrossOrigin(origins = "*")
 @RequestMapping("/api/bookings")
 public class BookingController {
+
+    private static final String HEADER_USER_ID = "X-User-Id";
+    private static final String HEADER_USER_ROLE = "X-User-Role";
 
     private final BookingService bookingService;
     private final EventSeatRepository eventSeatRepository;
@@ -21,16 +23,23 @@ public class BookingController {
         this.eventSeatRepository = eventSeatRepository;
     }
 
-    public record CreateBookingRequest(UUID eventId, String userId, String seatRow, Integer seatNumber) {}
-    public record ReturnBookingRequest(UUID eventId, String userId, String seatRow, Integer seatNumber) {}
+    public record CreateBookingRequest(UUID eventId, String seatRow, Integer seatNumber) {}
+    public record ReturnBookingRequest(UUID eventId, String seatRow, Integer seatNumber) {}
     public record BookingStatusResponse(String status) {}
     public record BookingResponse(UUID bookingId, String status) {}
     public record ReturnBookingResponse(String status, String seatRow, Integer seatNumber) {}
     public record EventSeatStatusResponse(String row, Integer seatNumber, String status) {}
 
     @GetMapping("/{bookingId}/status")
-    public ResponseEntity<BookingStatusResponse> getBookingStatus(@PathVariable UUID bookingId) {
-        return bookingService.findById(bookingId).map(booking -> ResponseEntity.ok(new BookingStatusResponse(booking.getStatus().name()))).orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<BookingStatusResponse> getBookingStatus(
+            @PathVariable UUID bookingId,
+            @RequestHeader(HEADER_USER_ID) String userId,
+            @RequestHeader(value = HEADER_USER_ROLE, defaultValue = "USER") String role) {
+
+        return bookingService.findById(bookingId)
+                .filter(booking -> booking.getUserId().equals(userId) || "ADMIN".equals(role))
+                .map(booking -> ResponseEntity.ok(new BookingStatusResponse(booking.getStatus().name())))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/events/{eventId}/seat-status")
@@ -48,24 +57,32 @@ public class BookingController {
     }
 
     @PostMapping
-    public ResponseEntity<BookingResponse> createBooking(@RequestBody CreateBookingRequest request) {
+    public ResponseEntity<BookingResponse> createBooking(
+            @RequestHeader(HEADER_USER_ID) String userId,
+            @RequestBody CreateBookingRequest request) {
+
         UUID bookingId = bookingService.createBooking(
                 request.eventId(),
-                request.userId(),
+                userId,
                 request.seatRow(),
                 request.seatNumber()
         );
 
-        String status = bookingService.findById(bookingId).map(booking -> booking.getStatus().name()).orElse("RESERVED");
+        String status = bookingService.findById(bookingId)
+                .map(booking -> booking.getStatus().name())
+                .orElse("RESERVED");
 
         return ResponseEntity.ok(new BookingResponse(bookingId, status));
     }
 
     @PostMapping("/return")
-    public ResponseEntity<ReturnBookingResponse> returnTicket(@RequestBody ReturnBookingRequest request) {
+    public ResponseEntity<ReturnBookingResponse> returnTicket(
+            @RequestHeader(HEADER_USER_ID) String userId,
+            @RequestBody ReturnBookingRequest request) {
+
         bookingService.returnTicket(
                 request.eventId(),
-                request.userId(),
+                userId,
                 request.seatRow(),
                 request.seatNumber()
         );
