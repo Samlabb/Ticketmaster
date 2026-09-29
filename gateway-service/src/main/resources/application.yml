@@ -54,9 +54,14 @@ spring:
               - DELETE
               - OPTIONS
             allowedHeaders: "*"
+            maxAge: 3600
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
 
 management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: "health,info"

@@ -1,6 +1,5 @@
 package com.ticket.event.application;
 
-import com.ticket.event.domain.Event;
 import com.ticket.event.domain.Seat;
 import com.ticket.event.infrastructure.EventRepository;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +10,6 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@CrossOrigin(origins = "*")
 @RequestMapping("/api/events")
 public class EventController {
 

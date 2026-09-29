@@ -1,13 +1,15 @@
 package com.ticket.user.application;
 
+import com.ticket.exception.BusinessException;
+import com.ticket.security.Role;
 import com.ticket.user.domain.AdminAuditLog;
 import com.ticket.user.domain.OrderHistoryItem;
-import com.ticket.security.Role;
 import com.ticket.user.domain.UserProfile;
 import com.ticket.user.infrastructure.AdminAuditLogRepository;
 import com.ticket.user.infrastructure.JwtService;
 import com.ticket.user.infrastructure.OrderHistoryRepository;
 import com.ticket.user.infrastructure.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class UserService {
     private final AdminAuditLogRepository adminAuditLogRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final String dummyHash;
 
     public UserService(UserRepository userRepository,
                        OrderHistoryRepository orderHistoryRepository,
@@ -34,6 +37,8 @@ public class UserService {
         this.adminAuditLogRepository = adminAuditLogRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        // Для выравнивания времени ответа, когда пользователя с таким email нет
+        this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
     @Transactional
@@ -47,7 +52,7 @@ public class UserService {
         }
 
         if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new IllegalArgumentException("User with this email already exists");
+            throw new BusinessException("User with this email already exists", HttpStatus.CONFLICT, "EMAIL_TAKEN");
         }
 
         UserProfile user = new UserProfile(normalizedEmail, passwordEncoder.encode(candidatePassword), normalizedName);
@@ -57,15 +62,17 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfile login(String email, String password) {
         String normalizedEmail = email == null ? "" : email.trim();
-        if (normalizedEmail.isBlank()) {
-            throw new IllegalArgumentException("Email is required");
+        String rawPassword = password == null ? "" : password;
+
+        UserProfile user = userRepository.findByEmail(normalizedEmail).orElse(null);
+
+        if (user == null) {
+            passwordEncoder.matches(rawPassword, dummyHash);
+            throw invalidCredentials();
         }
 
-        UserProfile user = userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-        if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new IllegalArgumentException("Invalid password");
+        if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+            throw invalidCredentials();
         }
 
         return user;
@@ -80,8 +87,8 @@ public class UserService {
     }
 
     public String refreshAccessToken(String refreshToken) {
-        if (refreshToken == null || !jwtService.isTokenValid(refreshToken)) {
-            throw new IllegalArgumentException("Refresh token is invalid or expired");
+        if (refreshToken == null || !jwtService.isRefreshTokenValid(refreshToken)) {
+            throw new BusinessException("Refresh token is invalid or expired", HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
         }
 
         UUID userId = UUID.fromString(jwtService.extractUserId(refreshToken));
@@ -92,7 +99,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfile findById(UUID userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
     }
 
     @Transactional(readOnly = true)
@@ -116,7 +123,7 @@ public class UserService {
     public UserProfile changeRole(UUID actingAdminId, UUID targetUserId, Role newRole) {
         UserProfile actingAdmin = findById(actingAdminId);
         if (actingAdmin.getRole() != Role.ADMIN) {
-            throw new IllegalArgumentException("Только администратор может изменять роли");
+            throw new BusinessException("Только администратор может изменять роли", HttpStatus.FORBIDDEN, "ADMIN_REQUIRED");
         }
 
         UserProfile targetUser = findById(targetUserId);
@@ -130,5 +137,9 @@ public class UserService {
                 previousRole, newRole));
 
         return targetUser;
+    }
+
+    private BusinessException invalidCredentials() {
+        return new BusinessException("Invalid email or password", HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
     }
 }
