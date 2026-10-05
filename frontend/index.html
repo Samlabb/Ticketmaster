@@ -34,6 +34,7 @@
           </nav>
 
           <div class="nav-actions">
+            <button class="ghost-btn hidden" id="adminPanelToggle" type="button">Manage events</button>
             <button class="ghost-btn" id="authToggleBtn">Sign in</button>
             <button class="primary-btn">Sell tickets</button>
           </div>
@@ -79,6 +80,51 @@
             </div>
 
           </div>
+        </section>
+
+        <section class="container admin-panel hidden" id="adminPanel" aria-labelledby="adminPanelTitle">
+          <div class="admin-panel-heading">
+            <div>
+              <span class="eyebrow dark">Administration</span>
+              <h2 id="adminPanelTitle">Manage events</h2>
+            </div>
+            <button class="primary-btn" id="adminCreateEvent" type="button">New event</button>
+          </div>
+
+          <form class="admin-event-form hidden" id="adminEventForm">
+            <h3 id="adminFormTitle">New event</h3>
+            <div class="admin-form-grid">
+              <label class="admin-field">
+                <span>Event name</span>
+                <input name="name" maxlength="120" required />
+              </label>
+              <label class="admin-field">
+                <span>Artist</span>
+                <input name="artist" maxlength="120" required />
+              </label>
+              <label class="admin-field">
+                <span>Venue and location</span>
+                <input name="location" maxlength="200" required />
+              </label>
+              <label class="admin-field">
+                <span>Date and time</span>
+                <input name="eventDate" type="datetime-local" required />
+              </label>
+              <label class="admin-field" id="adminSeatPriceField">
+                <span>Starting seat price</span>
+                <input name="seatPrice" type="number" min="0.01" step="0.01" value="55" required />
+              </label>
+            </div>
+            <div class="admin-form-footer">
+              <p id="adminFormStatus" role="status" aria-live="polite"></p>
+              <div>
+                <button class="ghost-btn" id="adminCancelEdit" type="button">Cancel</button>
+                <button class="primary-btn" id="adminSaveEvent" type="submit">Create event</button>
+              </div>
+            </div>
+          </form>
+
+          <div class="admin-event-list" id="adminEventList" aria-live="polite"></div>
         </section>
 
         <section class="categories container">

@@ -62,6 +62,16 @@ public class Event {
         this.deletedAt = LocalDateTime.now();
     }
 
+    public void updateDetails(String name, String artist, String location, LocalDateTime eventDate) {
+        if (eventDate.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Нельзя перенести мероприятие в прошлое");
+        }
+        this.name = name;
+        this.artist = artist;
+        this.location = location;
+        this.eventDate = eventDate;
+    }
+
     public UUID getId() {
         return id;
     }

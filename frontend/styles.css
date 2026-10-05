@@ -405,6 +405,128 @@ button {
   gap: 20px;
 }
 
+.empty-state {
+  grid-column: 1 / -1;
+  padding: 32px 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.admin-panel {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-panel-heading,
+.admin-form-footer,
+.admin-event-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-panel-heading {
+  margin-bottom: 22px;
+}
+
+.admin-panel-heading h2 {
+  margin: 8px 0 0;
+  font-size: 1.8rem;
+}
+
+.admin-event-form {
+  padding: 22px 0;
+  border-block: 1px solid var(--line);
+}
+
+.admin-event-form h3 {
+  margin: 0 0 18px;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-field {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.admin-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.admin-field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.admin-form-footer {
+  margin-top: 18px;
+}
+
+.admin-form-footer p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.admin-form-footer p.error {
+  color: #b42318;
+}
+
+.admin-form-footer > div,
+.admin-event-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-event-row {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-event-summary {
+  min-width: 0;
+}
+
+.admin-event-summary strong,
+.admin-event-summary span {
+  display: block;
+}
+
+.admin-event-summary span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-event-actions button {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.admin-event-actions button:last-child {
+  color: #a12b20;
+}
+
 .event-card {
   background: rgba(15, 23, 42, 0.9);
   border: 1px solid var(--line);
@@ -1105,8 +1227,21 @@ button {
 }
 
 @media (max-width: 720px) {
-  .main-nav,
+  .main-nav {
+    display: none;
+  }
+
   .nav-actions {
+    gap: 6px;
+  }
+
+  .nav-actions .ghost-btn,
+  .nav-actions .primary-btn {
+    padding: 0.55rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  .nav-actions > .primary-btn {
     display: none;
   }
 
@@ -1131,6 +1266,21 @@ button {
   .inline-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-panel-heading,
+  .admin-event-row,
+  .admin-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-form-footer > div {
+    justify-content: flex-end;
   }
 
   .spotlight-banner {

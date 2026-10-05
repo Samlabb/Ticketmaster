@@ -38,6 +38,14 @@ public class EventService {
         kafkaProducer.publishEventCreated(domainEvent);
         return saveEvent.getId();
     }
+
+    @Transactional
+    public UUID updateEvent(UUID eventId, String name, String artist, String location, LocalDateTime eventDate) {
+        Event event = eventRepository.findByIdAndDeletedAtIsNull(eventId)
+                .orElseThrow(() -> new EntityNotFoundException("Мероприятие не найдено: " + eventId));
+        event.updateDetails(name, artist, location, eventDate);
+        return event.getId();
+    }
 //Тут хибер неявно сравнивает сущность и бд и сам генерит запрос(можно явно написать eventRepository.save(event))
     @Transactional
     public UUID deleteEvent(UUID idEvent){

@@ -2,6 +2,10 @@ server:
   port: 8080
 
 spring:
+  config:
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:../.env[.properties]
   application:
     name: gateway-service
 
@@ -14,32 +18,32 @@ spring:
     gateway:
       routes:
         - id: event-service
-          uri: http://localhost:8081
+          uri: "${EVENT_SERVICE_URL:http://localhost:8081}"
           predicates:
             - Path=/api/events/**
 
         - id: booking-service
-          uri: http://localhost:8082
+          uri: "${BOOKING_SERVICE_URL:http://localhost:8082}"
           predicates:
             - Path=/api/bookings/**
 
         - id: payment-service
-          uri: http://localhost:8083
+          uri: "${PAYMENT_SERVICE_URL:http://localhost:8083}"
           predicates:
             - Path=/api/payments/**
 
         - id: user-service
-          uri: http://localhost:8084
+          uri: "${USER_SERVICE_URL:http://localhost:8084}"
           predicates:
             - Path=/api/users/**
 
         - id: analytics-service
-          uri: http://localhost:8085
+          uri: "${ANALYTICS_SERVICE_URL:http://localhost:8085}"
           predicates:
             - Path=/api/analytics/**
 
         - id: legacy-ping
-          uri: http://localhost:8081
+          uri: "${EVENT_SERVICE_URL:http://localhost:8081}"
           predicates:
             - Path=/ping
 

@@ -38,6 +38,7 @@
         <module>payment-service</module>
         <module>user-service</module>
         <module>analytics-service</module>
+        <module>start-application</module>
     </modules>
 
     <dependencyManagement>
