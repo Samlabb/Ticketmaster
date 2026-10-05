@@ -37,7 +37,6 @@ public class UserService {
         this.adminAuditLogRepository = adminAuditLogRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        // Для выравнивания времени ответа, когда пользователя с таким email нет
         this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
@@ -48,11 +47,11 @@ public class UserService {
         String candidatePassword = password == null ? "" : password;
 
         if (normalizedEmail.isBlank() || normalizedName.isBlank() || candidatePassword.isBlank()) {
-            throw new IllegalArgumentException("Email, full name and password are required");
+            throw new IllegalArgumentException("");
         }
 
         if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new BusinessException("User with this email already exists", HttpStatus.CONFLICT, "EMAIL_TAKEN");
+            throw new BusinessException("Пользователь с такой м=почтой уже существует", HttpStatus.CONFLICT, "EMAIL_TAKEN");
         }
 
         UserProfile user = new UserProfile(normalizedEmail, passwordEncoder.encode(candidatePassword), normalizedName);
@@ -88,7 +87,7 @@ public class UserService {
 
     public String refreshAccessToken(String refreshToken) {
         if (refreshToken == null || !jwtService.isRefreshTokenValid(refreshToken)) {
-            throw new BusinessException("Refresh token is invalid or expired", HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
+            throw new BusinessException("Рефреш токен истек или недействителен", HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
         }
 
         UUID userId = UUID.fromString(jwtService.extractUserId(refreshToken));
@@ -99,7 +98,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserProfile findById(UUID userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+                .orElseThrow(() -> new BusinessException("Пользователь не найден", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
     }
 
     @Transactional(readOnly = true)
@@ -140,6 +139,6 @@ public class UserService {
     }
 
     private BusinessException invalidCredentials() {
-        return new BusinessException("Invalid email or password", HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
+        return new BusinessException("неверный email или пароль", HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
     }
 }

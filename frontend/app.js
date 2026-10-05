@@ -3,39 +3,13 @@ const API_BASE = GATEWAY_API_BASE;
 const BOOKING_API_BASE = GATEWAY_API_BASE;
 const USER_API_BASE = GATEWAY_API_BASE;
 
-const defaultEvents = [
-  {
-    id: 'seed-1',
-    name: 'Midnight Echo Tour',
-    artist: 'The Weeknd',
-    location: 'Madison Square Garden, New York',
-    eventDate: '2026-09-18T20:00:00',
-    seats: [
-      { row: 'A', seatNumber: 12, price: 66 },
-      { row: 'A', seatNumber: 13, price: 82 },
-      { row: 'B', seatNumber: 5, price: 92 },
-      { row: 'B', seatNumber: 6, price: 108 }
-    ]
-  },
-  {
-    id: 'seed-2',
-    name: 'City Lights Gala',
-    artist: 'Imagine Dragons',
-    location: 'Hollywood Bowl, Los Angeles',
-    eventDate: '2026-09-20T19:30:00',
-    seats: [
-      { row: 'A', seatNumber: 2, price: 95 },
-      { row: 'A', seatNumber: 3, price: 110 },
-      { row: 'C', seatNumber: 7, price: 120 }
-    ]
-  }
-];
-
 let allEvents = [];
 let selectedEvent = null;
 let selectedSeat = null;
 let selectedSeats = [];
 let currentUser = null;
+let adminEvents = [];
+let editingEventId = null;
 let authMode = 'login';
 const USER_TICKETS_KEY = 'pulsepass-user-tickets';
 
@@ -546,10 +520,15 @@ function getSeatMap(event) {
   }));
 }
 
-function renderEvents(events) {
+function renderEvents(events, emptyMessage = 'Мероприятий пока нет.') {
   const grid = document.querySelector('.event-grid');
 
   if (!grid) {
+    return;
+  }
+
+  if (!events.length) {
+    grid.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
     return;
   }
 
@@ -921,6 +900,9 @@ async function ensureValidAccessToken() {
 }
 
 function persistCurrentUser(user) {
+  if (user) {
+    user.role = decodeJwtPayload(user.accessToken)?.role || user.role || 'USER';
+  }
   currentUser = user;
 
   if (user) {
@@ -944,6 +926,8 @@ function persistCurrentUser(user) {
       authToggleBtn.classList.remove('is-user');
     }
   }
+
+  updateAdminPanelVisibility();
 }
 
 function logoutUser() {
@@ -966,6 +950,169 @@ function logoutUser() {
     profileModal.classList.add('hidden');
     profileModal.setAttribute('aria-hidden', 'true');
   }
+
+  updateAdminPanelVisibility();
+}
+
+function updateAdminPanelVisibility() {
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const toggle = document.getElementById('adminPanelToggle');
+  const panel = document.getElementById('adminPanel');
+
+  toggle?.classList.toggle('hidden', !isAdmin);
+  if (!isAdmin) {
+    panel?.classList.add('hidden');
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character]);
+}
+
+function formatDateTimeInput(value) {
+  const date = value ? new Date(value) : new Date(Date.now() + 30 * 86400000);
+  if (!value) {
+    date.setHours(19, 30, 0, 0);
+  }
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function showAdminStatus(message, isError = false) {
+  const status = document.getElementById('adminFormStatus');
+  if (!status) {
+    return;
+  }
+  status.textContent = message;
+  status.classList.toggle('error', isError);
+}
+
+function openAdminEventForm(eventToEdit = null) {
+  const form = document.getElementById('adminEventForm');
+  if (!form) {
+    return;
+  }
+
+  editingEventId = eventToEdit?.id || null;
+  form.reset();
+  form.elements.namedItem('name').value = eventToEdit?.name || '';
+  form.elements.namedItem('artist').value = eventToEdit?.artist || '';
+  form.elements.namedItem('location').value = eventToEdit?.location || '';
+  form.elements.namedItem('eventDate').value = formatDateTimeInput(eventToEdit?.eventDate);
+  form.elements.namedItem('seatPrice').disabled = Boolean(eventToEdit);
+  document.getElementById('adminSeatPriceField')?.classList.toggle('hidden', Boolean(eventToEdit));
+  document.getElementById('adminFormTitle').textContent = eventToEdit ? 'Edit event' : 'New event';
+  document.getElementById('adminSaveEvent').textContent = eventToEdit ? 'Save changes' : 'Create event';
+  showAdminStatus('');
+  form.classList.remove('hidden');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeAdminEventForm() {
+  editingEventId = null;
+  document.getElementById('adminEventForm')?.classList.add('hidden');
+  document.getElementById('adminSeatPriceField')?.classList.remove('hidden');
+  const priceInput = document.querySelector('#adminEventForm [name="seatPrice"]');
+  if (priceInput) {
+    priceInput.disabled = false;
+  }
+  showAdminStatus('');
+}
+
+function renderAdminEvents(events) {
+  const list = document.getElementById('adminEventList');
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = events.length
+      ? events.map((event) => `
+        <article class="admin-event-row">
+          <div class="admin-event-summary">
+            <strong>${escapeHtml(event.name)}</strong>
+            <span>${escapeHtml(event.artist)} · ${escapeHtml(event.location)} · ${new Date(event.eventDate).toLocaleString()}</span>
+            <span>${event.seats?.length || 0} seats</span>
+          </div>
+          <div class="admin-event-actions">
+            <button type="button" data-admin-edit="${escapeHtml(event.id)}">Edit</button>
+            <button type="button" data-admin-delete="${escapeHtml(event.id)}">Unpublish</button>
+          </div>
+        </article>
+      `).join('')
+      : '<p class="empty-state">No events to manage.</p>';
+}
+
+async function loadAdminEvents() {
+  if (currentUser?.role !== 'ADMIN') {
+    return;
+  }
+
+  const list = document.getElementById('adminEventList');
+  if (list) {
+    list.innerHTML = '<p class="empty-state">Loading events…</p>';
+  }
+
+  try {
+    const accessToken = await ensureValidAccessToken();
+    const response = await fetch(`${API_BASE}/api/events`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (!response.ok) {
+      throw new Error(`Could not load events (HTTP ${response.status})`);
+    }
+    adminEvents = await response.json();
+    renderAdminEvents(adminEvents);
+  } catch (error) {
+    if (list) {
+      list.innerHTML = `<p class="empty-state">${escapeHtml(error.message || 'Could not load events.')}</p>`;
+    }
+  }
+}
+
+async function saveAdminEvent(form) {
+  const formData = new FormData(form);
+  const payload = {
+    name: formData.get('name').trim(),
+    artist: formData.get('artist').trim(),
+    location: formData.get('location').trim(),
+    eventDate: formData.get('eventDate')
+  };
+
+  if (!editingEventId) {
+    const startingPrice = Number(formData.get('seatPrice'));
+    payload.seats = [
+      { row: 'A', seatNumber: 1, price: startingPrice },
+      { row: 'A', seatNumber: 2, price: startingPrice },
+      { row: 'B', seatNumber: 1, price: startingPrice + 15 },
+      { row: 'B', seatNumber: 2, price: startingPrice + 15 }
+    ];
+  }
+
+  const isEditing = Boolean(editingEventId);
+  const endpoint = isEditing ? `${API_BASE}/api/events/${editingEventId}` : `${API_BASE}/api/events`;
+  const accessToken = await ensureValidAccessToken();
+  const response = await fetch(endpoint, {
+    method: isEditing ? 'PUT' : 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message || errorPayload.error || `Save failed (HTTP ${response.status})`);
+  }
+
+  closeAdminEventForm();
+  await Promise.all([loadEvents(), loadAdminEvents()]);
 }
 
 async function loadUserProfile() {
@@ -1337,39 +1484,8 @@ async function searchEvents(event) {
         error
     );
 
-    allEvents =
-        defaultEvents.filter((item) => {
-
-          const matchesArtist =
-              !artist ||
-              (item.artist || item.name)
-                  .toLowerCase()
-                  .includes(
-                      artist.toLowerCase()
-                  );
-
-          const matchesLocation =
-              !location ||
-              item.location
-                  .toLowerCase()
-                  .includes(
-                      location.toLowerCase()
-                  );
-
-          const matchesDate =
-              !date ||
-              item.eventDate.startsWith(
-                  date
-              );
-
-          return (
-              matchesArtist &&
-              matchesLocation &&
-              matchesDate
-          );
-        });
-
-    renderEvents(allEvents);
+    allEvents = [];
+    renderEvents([], 'Не удалось загрузить мероприятия. Проверьте доступность API.');
   }
 }
 
@@ -1389,11 +1505,6 @@ async function loadEvents() {
     allEvents =
         await response.json();
 
-    if (!allEvents.length) {
-      allEvents =
-          defaultEvents;
-    }
-
     await hydrateSeatStatusesForEvents(allEvents);
 
     renderEvents(
@@ -1406,12 +1517,8 @@ async function loadEvents() {
         error
     );
 
-    allEvents =
-        defaultEvents;
-
-    renderEvents(
-        defaultEvents
-    );
+    allEvents = [];
+    renderEvents([], 'Не удалось загрузить мероприятия. Проверьте доступность API.');
   }
 }
 
@@ -1559,6 +1666,11 @@ document.addEventListener(
               'authToggleBtn'
           );
 
+        const adminPanelToggle = document.getElementById('adminPanelToggle');
+        const adminPanel = document.getElementById('adminPanel');
+        const adminEventForm = document.getElementById('adminEventForm');
+        const adminEventList = document.getElementById('adminEventList');
+
       const authForm =
           document.getElementById(
               'authForm'
@@ -1670,6 +1782,77 @@ document.addEventListener(
               authStatus.textContent = error.message || 'Не удалось выполнить вход';
               authStatus.classList.add('visible');
             }
+          }
+        });
+      }
+
+      if (adminPanelToggle && adminPanel) {
+        adminPanelToggle.addEventListener('click', async () => {
+          const opening = adminPanel.classList.contains('hidden');
+          adminPanel.classList.toggle('hidden', !opening);
+          if (opening) {
+            await loadAdminEvents();
+            adminPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      }
+
+      document.getElementById('adminCreateEvent')?.addEventListener('click', () => {
+        openAdminEventForm();
+      });
+
+      document.getElementById('adminCancelEdit')?.addEventListener('click', closeAdminEventForm);
+
+      if (adminEventForm) {
+        adminEventForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const saveButton = document.getElementById('adminSaveEvent');
+          saveButton.disabled = true;
+          showAdminStatus('Saving event…');
+
+          try {
+            await saveAdminEvent(adminEventForm);
+          } catch (error) {
+            showAdminStatus(error.message || 'Could not save event.', true);
+          } finally {
+            saveButton.disabled = false;
+          }
+        });
+      }
+
+      if (adminEventList) {
+        adminEventList.addEventListener('click', async (event) => {
+          const editButton = event.target.closest('[data-admin-edit]');
+          if (editButton) {
+            const selectedAdminEvent = adminEvents.find(
+                (item) => String(item.id) === editButton.dataset.adminEdit
+            );
+            if (selectedAdminEvent) {
+              openAdminEventForm(selectedAdminEvent);
+            }
+            return;
+          }
+
+          const deleteButton = event.target.closest('[data-admin-delete]');
+          if (!deleteButton || !window.confirm('Unpublish this event?')) {
+            return;
+          }
+
+          deleteButton.disabled = true;
+          try {
+            const accessToken = await ensureValidAccessToken();
+            const response = await fetch(`${API_BASE}/api/events/${deleteButton.dataset.adminDelete}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (!response.ok) {
+              const errorPayload = await response.json().catch(() => ({}));
+              throw new Error(errorPayload.message || errorPayload.error || `Unpublish failed (HTTP ${response.status})`);
+            }
+            await Promise.all([loadEvents(), loadAdminEvents()]);
+          } catch (error) {
+            window.alert(error.message || 'Could not unpublish event.');
+            deleteButton.disabled = false;
           }
         });
       }
@@ -1810,7 +1993,6 @@ document.addEventListener(
                             'Authorization': `Bearer ${authToken}`
                           },
                           body: JSON.stringify({
-                            userId: currentUser.id,
                             eventId: paymentEvent.id,
                             eventName: paymentEvent.name,
                             seatLabel: `${seat.row}${seat.seatNumber}`,

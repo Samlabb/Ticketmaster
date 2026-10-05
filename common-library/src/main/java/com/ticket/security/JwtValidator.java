@@ -30,7 +30,6 @@ public class JwtValidator {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Подпись + срок действия, тип токена не проверяется. Для бизнес-логики лучше использовать методы ниже. */
     public boolean isTokenValid(String token) {
         try {
             Claims claims = claims(token);
@@ -48,7 +47,6 @@ public class JwtValidator {
         return hasValidType(token, TYPE_REFRESH);
     }
 
-    /** Возвращает пользователя, только если токен валиден и это именно access-токен. */
     public Optional<TokenPrincipal> parseAccessToken(String token) {
         try {
             Claims claims = claims(token);

@@ -27,11 +27,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Единая точка аутентификации и авторизации.
- * Правила проверяются сверху вниз, первое совпавшее побеждает.
- * Всё, что не попало ни в одно правило, требует валидного access-токена.
- */
+
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
@@ -48,20 +44,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private static final List<Rule> RULES = List.of(
-            // CORS preflight
+
             new Rule(Set.of(HttpMethod.OPTIONS), "/**", Access.PUBLIC),
 
-            // Аутентификация
+
             new Rule(Set.of(HttpMethod.POST), "/api/users/register", Access.PUBLIC),
             new Rule(Set.of(HttpMethod.POST), "/api/users/login", Access.PUBLIC),
             new Rule(Set.of(HttpMethod.POST), "/api/users/refresh", Access.PUBLIC),
 
-            // Публичный каталог
+
             new Rule(Set.of(HttpMethod.GET), "/ping", Access.PUBLIC),
             new Rule(Set.of(HttpMethod.GET), "/api/events/**", Access.PUBLIC),
             new Rule(Set.of(HttpMethod.GET), "/api/bookings/events/*/seat-status", Access.PUBLIC),
 
-            // Только админ
+
             new Rule(Set.of(), "/api/events/**", Access.ADMIN),          // POST / PUT / DELETE
             new Rule(Set.of(), "/api/analytics/**", Access.ADMIN),
             new Rule(Set.of(HttpMethod.PUT), "/api/users/*/role", Access.ADMIN)
@@ -103,8 +99,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             }
         }
 
-        // Клиентские X-User-* всегда выбрасываем, чтобы их нельзя было подделать
-        ServerHttpRequest.Builder builder = request.mutate().headers(headers -> {
+       ServerHttpRequest.Builder builder = request.mutate().headers(headers -> {
             headers.remove(HEADER_USER_ID);
             headers.remove(HEADER_USER_ROLE);
         });
@@ -119,7 +114,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        // RateLimitFilter = -1, поэтому лимит срабатывает раньше проверки токена
         return 0;
     }
 

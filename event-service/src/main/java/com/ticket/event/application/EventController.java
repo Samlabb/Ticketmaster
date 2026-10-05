@@ -2,6 +2,7 @@ package com.ticket.event.application;
 
 import com.ticket.event.domain.Seat;
 import com.ticket.event.infrastructure.EventRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,7 +22,6 @@ public class EventController {
         this.eventRepository = eventRepository;
     }
 
-    public record CreateEventRequest(String name, String artist, String location, LocalDateTime eventDate, List<Seat> seats) {}
     public record EventResponse(UUID id, String name, String artist, String location, LocalDateTime eventDate, List<Seat> seats) {}
 
     @GetMapping
@@ -40,7 +40,7 @@ public class EventController {
     }
 
     @PostMapping
-    public ResponseEntity<UUID> createEvent(@RequestBody CreateEventRequest request) {
+    public ResponseEntity<UUID> createEvent(@Valid @RequestBody CreateEventRequest request) {
         UUID eventId = eventService.createEvent(
                 request.name(),
                 request.artist(),
@@ -49,6 +49,18 @@ public class EventController {
                 request.seats()
         );
         return ResponseEntity.ok(eventId);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<UUID> updateEvent(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateEventRequest request) {
+        return ResponseEntity.ok(eventService.updateEvent(
+                id,
+                request.name(),
+                request.artist(),
+                request.location(),
+                request.eventDate()));
     }
 
     @DeleteMapping("/{id}")

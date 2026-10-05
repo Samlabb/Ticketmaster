@@ -53,6 +53,11 @@ public class EventLifecycleConsumer {
     }
 
     private void handleCreated(CreatedEvent event) {
+        if (!eventSeatRepository.findAllByEventId(event.eventId()).isEmpty()) {
+            log.debug("Проекция мест для события {} уже существует", event.eventId());
+            return;
+        }
+
         List<EventSeat> seatsToSave = event.seats().stream()
                 .map(seatDto -> EventSeat.createProjection(event.eventId(), seatDto.row(), seatDto.seatNumber(), seatDto.price()))
                 .toList();
