@@ -1,448 +1,119 @@
-const GATEWAY_API_BASE = 'http://localhost:8080';
-const API_BASE = GATEWAY_API_BASE;
-const BOOKING_API_BASE = GATEWAY_API_BASE;
-const USER_API_BASE = GATEWAY_API_BASE;
+console.info('PulsePass app.js loaded: seat-config build v3');
+const API_BASE = 'http://localhost:8080';
+const BOOKING_API_BASE = API_BASE;
+const USER_API_BASE = API_BASE;
 
 let allEvents = [];
 let selectedEvent = null;
-let selectedSeat = null;
 let selectedSeats = [];
 let currentUser = null;
 let adminEvents = [];
 let editingEventId = null;
 let authMode = 'login';
-const USER_TICKETS_KEY = 'pulsepass-user-tickets';
+let activeCity = '';
+let ownedSeats = new Map();
 
 const seatsBeingPaid = new Map();
 
-function addDynamicStyles() {
-  if (document.getElementById('dynamicAppStyles')) {
-    return;
-  }
 
-  const style = document.createElement('style');
-  style.id = 'dynamicAppStyles';
 
-  style.textContent = `
-    .seat-btn.available {
-      background: #22c55e !important;
-      border-color: #16a34a !important;
-      color: white !important;
-      cursor: pointer;
-    }
-
-    .seat-btn.available:hover {
-      background: #16a34a !important;
-      transform: translateY(-2px);
-    }
-
-    .seat-btn.booked,
-    .seat-btn.paying {
-      background: #ef4444 !important;
-      border-color: #dc2626 !important;
-      color: white !important;
-      cursor: not-allowed;
-      opacity: 1 !important;
-    }
-
-    .seat-btn.selected {
-      background: #2563eb !important;
-      border-color: #1d4ed8 !important;
-      color: white !important;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
-      transform: translateY(-2px);
-    }
-
-    .seat-btn:disabled {
-      opacity: 1 !important;
-    }
-
-    .seat-legend {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 20px;
-      margin-top: 18px;
-      flex-wrap: wrap;
-      font-size: 13px;
-      color: #6b7280;
-    }
-
-    .seat-legend-item {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-
-    .seat-legend-color {
-      width: 16px;
-      height: 16px;
-      border-radius: 4px;
-      display: inline-block;
-    }
-
-    .seat-legend-color.free {
-      background: #22c55e;
-    }
-
-    .seat-legend-color.booked {
-      background: #ef4444;
-    }
-
-    .seat-legend-color.selected {
-      background: #2563eb;
-    }
-
-    .payment-notification {
-      position: fixed;
-      top: 28px;
-      right: 28px;
-      z-index: 99999;
-
-      min-width: 340px;
-      max-width: 460px;
-
-      display: flex;
-      align-items: center;
-      gap: 16px;
-
-      padding: 18px 22px;
-
-      border-radius: 16px;
-
-      background: white;
-
-      box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.15),
-        0 5px 15px rgba(0, 0, 0, 0.08);
-
-      transform: translateX(calc(100% + 50px));
-      opacity: 0;
-
-      transition:
-        transform 0.35s ease,
-        opacity 0.35s ease;
-    }
-
-    .payment-notification.show {
-      transform: translateX(0);
-      opacity: 1;
-    }
-
-    .payment-notification.success {
-      border-left: 5px solid #22c55e;
-    }
-
-    .payment-notification.error {
-      border-left: 5px solid #ef4444;
-    }
-
-    .notification-icon {
-      width: 48px;
-      height: 48px;
-      min-width: 48px;
-
-      border-radius: 50%;
-
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      font-size: 27px;
-      font-weight: 800;
-    }
-
-    .success .notification-icon {
-      background: #dcfce7;
-      color: #16a34a;
-    }
-
-    .error .notification-icon {
-      background: #fee2e2;
-      color: #dc2626;
-    }
-
-    .notification-content {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .notification-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #111827;
-    }
-
-    .notification-text {
-      font-size: 14px;
-      color: #6b7280;
-      line-height: 1.4;
-    }
-
-    .notification-close {
-      margin-left: auto;
-
-      border: none;
-      background: transparent;
-
-      font-size: 22px;
-      color: #9ca3af;
-
-      cursor: pointer;
-      padding: 4px;
-    }
-
-    .notification-close:hover {
-      color: #374151;
-    }
-
-    @media (max-width: 600px) {
-      .payment-notification {
-        left: 16px;
-        right: 16px;
-        top: 16px;
-
-        min-width: 0;
-        max-width: none;
-      }
-    }
-  `;
-
-  document.head.appendChild(style);
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
 }
 
-function showPaymentNotification(success, titleText = null, detailText = null) {
-  const oldNotification = document.getElementById('paymentNotification');
-
-  if (oldNotification) {
-    oldNotification.remove();
-  }
-
-  const notification = document.createElement('div');
-
-  notification.id = 'paymentNotification';
-  notification.className = `payment-notification ${success ? 'success' : 'error'}`;
-
-  if (success) {
-    notification.innerHTML = `
-      <div class="notification-icon">
-        ✓
-      </div>
-
-      <div class="notification-content">
-        <div class="notification-title">
-          ${titleText || 'Платёж успешно завершён'}
-        </div>
-        ${detailText ? `<div class="notification-text">${detailText}</div>` : '<div class="notification-text">Билет подтверждён.</div>'}
-      </div>
-
-      <button
-        type="button"
-        class="notification-close"
-        aria-label="Close"
-      >
-        ×
-      </button>
-    `;
-  } else {
-    notification.innerHTML = `
-      <div class="notification-icon">
-        ☹
-      </div>
-
-      <div class="notification-content">
-        <div class="notification-title">
-          ${titleText || 'Платёж не прошёл'}
-        </div>
-        <div class="notification-text">
-          ${detailText || 'Проверьте данные карты и попробуйте ещё раз.'}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        class="notification-close"
-        aria-label="Close"
-      >
-        ×
-      </button>
-    `;
-  }
-
-  document.body.appendChild(notification);
-
-  const closeButton = notification.querySelector('.notification-close');
-
-  closeButton.addEventListener('click', () => {
-    hidePaymentNotification(notification);
-  });
-
-  requestAnimationFrame(() => {
-    notification.classList.add('show');
-  });
-
-  setTimeout(() => {
-    hidePaymentNotification(notification);
-  }, 5000);
-}
-
-function hidePaymentNotification(notification) {
-  if (!notification) {
-    return;
-  }
-
-  notification.classList.remove('show');
-
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.remove();
-    }
-  }, 350);
-}
+const $ = (id) => document.getElementById(id);
 
 function formatDate(dateString) {
-  const date = new Date(dateString);
-
-  return date
-      .toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })
-      .toUpperCase();
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 }
 
 function formatLongDate(dateString) {
   return new Date(dateString).toLocaleString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
   });
 }
 
 function getStartingPrice(seats = []) {
-  if (!seats.length) {
-    return 0;
-  }
-
-  return Math.min(
-      ...seats.map((seat) => Number(seat.price || 0))
-  );
+  return seats.length ? Math.min(...seats.map((s) => Number(s.price || 0))) : 0;
 }
 
 function getCityLabel(location = '') {
   return location.split(',').slice(-1)[0].trim();
 }
 
+function coverClass(event) {
+  const index = Math.max(allEvents.findIndex((e) => String(e.id) === String(event.id)), 0);
+  return `cover-${(index % 4) + 1}`;
+}
+
 function getSeatKey(row, seatNumber) {
-  const normalizedRow = String(row || '').trim().toUpperCase();
-  const normalizedSeatNumber = Number(seatNumber);
-  return `${normalizedRow}${normalizedSeatNumber}`;
+  return `${String(row || '').trim().toUpperCase()}${Number(seatNumber)}`;
 }
 
-function parseSeatKey(ticketKey) {
-  const normalized = String(ticketKey || '').trim().toUpperCase();
-  const match = normalized.match(/^([A-Z]+)(\d+)$/);
 
-  if (!match) {
-    return { row: '', seatNumber: null };
-  }
 
-  return {
-    row: match[1],
-    seatNumber: Number(match[2])
-  };
+function showPaymentNotification(success, titleText = null, detailText = null) {
+  $('paymentNotification')?.remove();
+
+  const title = escapeHtml(titleText || (success ? 'Платёж успешно завершён' : 'Платёж не прошёл'));
+  const text = escapeHtml(detailText || (success ? 'Билет подтверждён.' : 'Проверьте данные карты и попробуйте ещё раз.'));
+
+  const notification = document.createElement('div');
+  notification.id = 'paymentNotification';
+  notification.className = `payment-notification ${success ? 'success' : 'error'}`;
+  notification.innerHTML = `
+    <div class="notification-icon">${success ? '✓' : '☹'}</div>
+    <div class="notification-content">
+      <div class="notification-title">${title}</div>
+      <div class="notification-text">${text}</div>
+    </div>
+    <button type="button" class="notification-close" aria-label="Close">×</button>`;
+
+  document.body.appendChild(notification);
+  notification.querySelector('.notification-close').addEventListener('click', () => hidePaymentNotification(notification));
+  requestAnimationFrame(() => notification.classList.add('show'));
+  setTimeout(() => hidePaymentNotification(notification), 5000);
 }
+
+function hidePaymentNotification(notification) {
+  if (!notification) return;
+  notification.classList.remove('show');
+  setTimeout(() => notification.remove(), 350);
+}
+
+
 
 function isSeatBeingPaid(eventId, row, seatNumber) {
-  const eventSeats = seatsBeingPaid.get(String(eventId));
-
-  if (!eventSeats) {
-    return false;
-  }
-
-  return eventSeats.has(
-      getSeatKey(row, seatNumber)
-  );
+  return seatsBeingPaid.get(String(eventId))?.has(getSeatKey(row, seatNumber)) || false;
 }
 
 function getBackendSeatStatus(seat) {
-  if (!seat) {
-    return 'AVAILABLE';
-  }
+  if (!seat) return 'AVAILABLE';
+  if (seat.booked === true || seat.available === false) return 'BOOKED';
 
-  if (seat.booked === true) {
-    return 'BOOKED';
-  }
-
-  if (seat.available === false) {
-    return 'BOOKED';
-  }
-
-  const status = String(
-      seat.status ||
-      seat.bookingStatus ||
-      seat.state ||
-      ''
-  ).toUpperCase();
-
-  if (
-      status === 'BOOKED' ||
-      status === 'PAID' ||
-      status === 'RESERVED' ||
-      status === 'SOLD'
-  ) {
-    return 'BOOKED';
-  }
-
-  if (
-      status === 'PENDING' ||
-      status === 'PAYMENT' ||
-      status === 'PAYING' ||
-      status === 'PROCESSING' ||
-      status === 'HOLD' ||
-      status === 'HELD'
-  ) {
-    return 'PAYING';
-  }
-
+  const status = String(seat.status || seat.bookingStatus || seat.state || '').toUpperCase();
+  if (['BOOKED', 'PAID', 'RESERVED', 'SOLD'].includes(status)) return 'BOOKED';
+  if (['PENDING', 'PAYMENT', 'PAYING', 'PROCESSING', 'HOLD', 'HELD'].includes(status)) return 'PAYING';
   return 'AVAILABLE';
 }
 
 async function hydrateSeatStatusesForEvents(events) {
-  if (!Array.isArray(events)) {
-    return events;
-  }
+  if (!Array.isArray(events)) return events;
 
   await Promise.all(events.map(async (event) => {
-    if (!event || !event.id) {
-      return event;
-    }
-
+    if (!event?.id) return;
     try {
       const response = await fetch(`${BOOKING_API_BASE}/api/bookings/events/${event.id}/seat-status`);
+      if (!response.ok) return;
 
-      if (!response.ok) {
-        return event;
-      }
-
-      const seatStatuses = await response.json();
-      const lookup = new Map((seatStatuses || []).map((seatStatus) => [
-        `${seatStatus.row}-${seatStatus.seatNumber}`,
-        seatStatus.status
-      ]));
+      const statuses = await response.json();
+      const lookup = new Map((statuses || []).map((s) => [`${s.row}-${s.seatNumber}`, s.status]));
 
       (event.seats || []).forEach((seat) => {
-        const key = `${seat.row}-${seat.seatNumber}`;
-        const backendStatus = lookup.get(key);
-
-        if (!backendStatus) {
-          return;
-        }
-
+        const backendStatus = lookup.get(`${seat.row}-${seat.seatNumber}`);
+        if (!backendStatus) return;
         seat.status = backendStatus;
         seat.available = backendStatus === 'AVAILABLE';
         seat.booked = ['RESERVED', 'SOLD'].includes(backendStatus);
@@ -450,327 +121,262 @@ async function hydrateSeatStatusesForEvents(events) {
     } catch (error) {
       console.warn('Seat status sync failed for event', event.id, error);
     }
-
-    return event;
   }));
 
   return events;
 }
 
+
+function compareRows(a, b) {
+  return a.length - b.length || a.localeCompare(b);
+}
+
 function getSeatMap(event) {
   const seats = event.seats || [];
-
-  const seatLookup = new Map();
-
-  seats.forEach((seat) => {
-    const key = `${seat.row}-${seat.seatNumber}`;
-
-    seatLookup.set(key, seat);
-  });
-
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const seatNumbers = Array.from(
-      { length: 12 },
-      (_, index) => index + 1
-  );
+  const seatLookup = new Map(seats.map((seat) => [`${seat.row}-${seat.seatNumber}`, seat]));
+  const rows = [...new Set(seats.map((seat) => seat.row))].sort(compareRows);
+  const maxSeatNumber = Math.max(0, ...seats.map((seat) => Number(seat.seatNumber)));
+  const seatNumbers = Array.from({ length: maxSeatNumber }, (_, i) => i + 1);
 
   return rows.map((row) => ({
     row,
-
     seats: seatNumbers.map((seatNumber) => {
       const key = `${row}-${seatNumber}`;
-
       const seat = seatLookup.get(key);
+      let status = seat ? getBackendSeatStatus(seat) : 'EMPTY';
 
-      let status = seat
-          ? getBackendSeatStatus(seat)
-          : 'EMPTY';
-
-      if (
-          seat &&
-          isSeatBeingPaid(
-              event.id,
-              row,
-              seatNumber
-          )
-      ) {
-        status = 'PAYING';
-      }
+      if (seat && isSeatBeingPaid(event.id, row, seatNumber)) status = 'PAYING';
 
       return {
-        key,
-        row,
-        seatNumber,
-
+        key, row, seatNumber, status,
         available: status === 'AVAILABLE',
-
         booked: status === 'BOOKED',
-
         paying: status === 'PAYING',
-
-        price: seat
-            ? Number(seat.price || 0)
-            : 0,
-
-        isSeat: Boolean(seat),
-
-        status
+        price: seat ? Number(seat.price || 0) : 0,
+        isSeat: Boolean(seat)
       };
     })
   }));
 }
 
+
+
+function getVisibleEvents() {
+  return activeCity
+      ? allEvents.filter((e) => getCityLabel(e.location) === activeCity)
+      : allEvents;
+}
+
+function renderCityChips() {
+  const container = $('cityChips');
+  if (!container) return;
+
+  const cities = [...new Set(allEvents.map((e) => getCityLabel(e.location)).filter(Boolean))].sort();
+  if (activeCity && !cities.includes(activeCity)) activeCity = '';
+
+  if (cities.length < 2) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = ['', ...cities].map((city) => `
+    <button type="button" class="chip ${city === activeCity ? 'active' : ''}" data-city="${escapeHtml(city)}">
+      ${city ? escapeHtml(city) : 'All'}
+    </button>`).join('');
+}
+
 function renderEvents(events, emptyMessage = 'Мероприятий пока нет.') {
   const grid = document.querySelector('.event-grid');
-
-  if (!grid) {
-    return;
-  }
+  if (!grid) return;
 
   if (!events.length) {
-    grid.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
+    grid.innerHTML = `<p class="empty-state">${escapeHtml(emptyMessage)}</p>`;
     return;
   }
 
-  grid.innerHTML = events
-      .map((event, index) => {
-        const startingPrice = getStartingPrice(event.seats);
+  grid.innerHTML = events.map((event) => `
+    <article class="event-card" data-open-event="${escapeHtml(event.id)}">
+      <div class="event-image ${coverClass(event)}"></div>
+      <div class="event-body">
+        <div class="event-meta-row">
+          <span class="date-badge">${escapeHtml(formatDate(event.eventDate))}</span>
+          <span class="location">${escapeHtml(getCityLabel(event.location))}</span>
+        </div>
+        <h3>${escapeHtml(event.name)}</h3>
+        <p>${escapeHtml(event.location)}</p>
+        <div class="event-footer">
+          <span class="tag">${escapeHtml(event.artist || 'Live')}</span>
+          <strong>From $${getStartingPrice(event.seats)}</strong>
+        </div>
+        <button class="card-buy-btn" type="button">Купить билеты</button>
+      </div>
+    </article>`).join('');
+}
 
-        const city = getCityLabel(event.location);
+function sortedByDate(events) {
+  return [...events].sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate));
+}
 
-        const coverClass = `image-${(index % 4) + 1}`;
+function renderSpotlight() {
+  const section = $('spotlightSection');
+  const box = $('spotlight');
+  if (!section || !box) return;
 
-        return `
-        <article
-          class="event-card"
-          data-event-id="${event.id}"
-        >
-          <div class="event-image ${coverClass}"></div>
+  const sorted = sortedByDate(allEvents);
+  if (!sorted.length) {
+    section.classList.add('hidden');
+    return;
+  }
 
-          <div class="event-body">
+  const next = sorted[0];
+  const freeSeats = allEvents.reduce(
+      (sum, e) => sum + (e.seats || []).filter((s) => getBackendSeatStatus(s) === 'AVAILABLE').length, 0);
+  const cities = new Set(allEvents.map((e) => getCityLabel(e.location))).size;
 
-            <div class="event-meta-row">
-              <span class="date-badge">
-                ${formatDate(event.eventDate)}
-              </span>
+  box.innerHTML = `
+    <div class="spotlight-copy">
+      <span class="eyebrow light">Next event</span>
+      <h2>${escapeHtml(next.name)}</h2>
+      <p>${escapeHtml(next.artist || '')} · ${escapeHtml(next.location)}<br>${escapeHtml(formatLongDate(next.eventDate))}</p>
+      <div class="spotlight-actions">
+        <button class="primary-btn" type="button" data-open-event="${escapeHtml(next.id)}">Choose seats</button>
+      </div>
+    </div>
+    <div class="spotlight-stats">
+      <div><strong>${allEvents.length}</strong><span>Events</span></div>
+      <div><strong>${freeSeats}</strong><span>Free seats</span></div>
+      <div><strong>${cities}</strong><span>Cities</span></div>
+    </div>`;
+  section.classList.remove('hidden');
+}
 
-              <span class="location">
-                ${city}
-              </span>
-            </div>
+function renderUpcoming() {
+  const section = $('upcomingSection');
+  const list = $('upcoming');
+  if (!section || !list) return;
 
-            <h3>${event.name}</h3>
+  const items = sortedByDate(allEvents).slice(1, 4);
+  if (!items.length) {
+    section.classList.add('hidden');
+    return;
+  }
 
-            <p>${event.location}</p>
+  list.innerHTML = items.map((event) => `
+    <article class="small-card" data-open-event="${escapeHtml(event.id)}">
+      <div class="small-thumb ${coverClass(event)}"></div>
+      <div>
+        <span>${escapeHtml(formatLongDate(event.eventDate))}</span>
+        <h3>${escapeHtml(event.name)}</h3>
+        <p>${escapeHtml(event.location)}</p>
+      </div>
+    </article>`).join('');
+  section.classList.remove('hidden');
+}
 
-            <div class="event-footer">
-              <span class="tag">
-                ${event.artist || 'Live'}
-              </span>
+function refreshView(emptyMessage) {
+  renderCityChips();
+  renderEvents(getVisibleEvents(), emptyMessage);
+  renderSpotlight();
+  renderUpcoming();
+}
 
-              <strong>
-                From $${startingPrice}
-              </strong>
-            </div>
+/* ---------- Event modal ---------- */
 
-            <button class="card-buy-btn" type="button" data-event-id="${event.id}">
-              Купить билеты
-            </button>
+function updateBuyButton() {
+  const buyTicketBtn = $('buyTicketBtn');
+  if (!buyTicketBtn) return;
+  buyTicketBtn.disabled = selectedSeats.length === 0;
+  buyTicketBtn.textContent = selectedSeats.length > 0 ? `Buy ticket(s) (${selectedSeats.length})` : 'Buy ticket';
+}
 
-          </div>
-        </article>
-      `;
-      })
-      .join('');
-
-  document.querySelectorAll('.event-card').forEach((card) => {
-    card.addEventListener('click', (clickEvent) => {
-      if (clickEvent.target.closest('.card-buy-btn')) {
-        const eventId = clickEvent.target.closest('.card-buy-btn').dataset.eventId;
-        const selectedEventData = allEvents.find((item) => String(item.id) === String(eventId));
-
-        if (selectedEventData) {
-          openEventModal(selectedEventData);
-        }
-        return;
-      }
-
-      const eventId = card.dataset.eventId;
-
-      const selectedEventData = allEvents.find(
-          (item) => String(item.id) === String(eventId)
-      );
-
-      if (selectedEventData) {
-        openEventModal(selectedEventData);
-      }
-    });
-  });
+function selectedLabelFor(event) {
+  const names = selectedSeats.filter((s) => s.eventId === event.id).map((s) => `${s.row}${s.seatNumber}`);
+  return names.length ? names.join(', ') : 'No seat selected';
 }
 
 function openEventModal(event) {
   selectedEvent = event;
-  selectedSeat = null;
 
-  const modal = document.getElementById('eventModal');
+  const seatMap = $('seatMap');
+  seatMap.innerHTML = '';
 
-  const hero = document.getElementById('modalHero');
+  $('modalHero').className = `event-modal-hero ${coverClass(event)}`;
+  $('modalTitle').textContent = event.name;
+  $('modalMeta').textContent = `${event.location} • ${formatLongDate(event.eventDate)}`;
+  $('modalDescription').textContent =
+      `${event.artist || 'Featured artist'} live at ${event.location}. Choose your seat below.`;
+  $('modalTag').textContent = event.artist || 'Live';
+  $('selectedSeatLabel').textContent = selectedLabelFor(event);
+  updateBuyButton();
 
-  const title = document.getElementById('modalTitle');
+  const owned = ownedSeats.get(String(event.id)) || new Set();
 
-  const meta = document.getElementById('modalMeta');
-
-  const description = document.getElementById(
-      'modalDescription'
-  );
-
-  const tag = document.getElementById('modalTag');
-
-  const seatMap = document.getElementById('seatMap');
-
-  if (seatMap) {
-    seatMap.innerHTML = '';
-  }
-
-  const selectedSeatLabel =
-      document.getElementById(
-          'selectedSeatLabel'
-      );
-
-  const buyTicketBtn = document.getElementById('buyTicketBtn');
-
-  const index = allEvents.findIndex(
-      (item) => String(item.id) === String(event.id)
-  );
-
-  hero.style.backgroundImage =
-      `linear-gradient(
-      180deg,
-      rgba(17,24,39,0.1),
-      rgba(17,24,39,0.25)
-    ),
-    url(
-      'https://images.unsplash.com/photo-${
-          [
-            '1501386761578-eac5c94b800a',
-            '1492684223066-81342ee5ff30',
-            '1501612780327-45045538702b',
-            '1516280440614-37939bbacd81'
-          ][index % 4]
-      }?auto=format&fit=crop&w=1200&q=80'
-    )`;
-
-  title.textContent = event.name;
-
-  meta.textContent =
-      `${event.location} • ${formatLongDate(event.eventDate)}`;
-
-  description.textContent =
-      `${event.artist || 'Featured artist'} live at ` +
-      `${event.location}. Secure your seat and enjoy ` +
-      `the best experience in the venue.`;
-
-  tag.textContent =
-      event.artist || 'Live';
-
-  const selectedSeatNames = selectedSeats
-      .filter((seat) => seat && seat.eventId === event.id)
-      .map((seat) => `${seat.row}${seat.seatNumber}`);
-
-  selectedSeatLabel.textContent = selectedSeatNames.length
-      ? selectedSeatNames.join(', ')
-      : 'No seat selected';
-
-  if (buyTicketBtn) {
-    buyTicketBtn.disabled = selectedSeats.length === 0;
-    buyTicketBtn.textContent = selectedSeats.length > 0 ? `Buy ticket(s) (${selectedSeats.length})` : 'Buy ticket';
-  }
-
-  const ownedTickets = getUserTickets()[String(event.id)] || [];
-  const userOwnedSeatSet = new Set((ownedTickets).map((ticket) => String(ticket).trim().toUpperCase()));
-
-  const seatLayout = getSeatMap(event);
-
-  seatLayout.forEach((row) => {
+  getSeatMap(event).forEach((row) => {
     const rowEl = document.createElement('div');
     rowEl.className = 'seat-row';
+
+    const rowLabel = document.createElement('span');
+    rowLabel.className = 'seat-row-label';
+    rowLabel.textContent = row.row;
+    rowEl.appendChild(rowLabel);
 
     row.seats.forEach((seat) => {
       if (!seat.isSeat) {
         const empty = document.createElement('div');
-        empty.style.width = '42px';
-        empty.style.height = '42px';
-        empty.style.visibility = 'hidden';
+        empty.className = 'seat-empty';
         rowEl.appendChild(empty);
         return;
       }
 
       const button = document.createElement('button');
       button.type = 'button';
+      button.textContent = String(seat.seatNumber);
+      button.dataset.row = seat.row;
+      button.dataset.seatNumber = String(seat.seatNumber);
 
-      const seatKey = getSeatKey(seat.row, seat.seatNumber).toUpperCase();
-      const isOwnedSeat = userOwnedSeatSet.has(seatKey);
-      const isSeatBooked = Boolean(seat.booked) || isOwnedSeat || ['RESERVED', 'SOLD'].includes(String(seat.status || '').toUpperCase());
+      const label = `${seat.row}${seat.seatNumber}`;
+      const isOwned = owned.has(getSeatKey(seat.row, seat.seatNumber));
+      const isBooked = seat.booked || isOwned;
 
-      if (isSeatBooked) {
+      if (isBooked) {
         button.className = 'seat-btn booked';
         button.disabled = true;
-        button.title = isOwnedSeat
-            ? `${seat.row}${seat.seatNumber} • Ваш билет`
-            : `${seat.row}${seat.seatNumber} • Забронировано`;
-      } else if (seat.paying) {
-        button.className = 'seat-btn paying';
-        button.disabled = true;
-        button.title = `${seat.row}${seat.seatNumber} • Оплата в процессе`;
-      } else {
-        button.className = 'seat-btn available';
-        button.title = `${seat.row}${seat.seatNumber} • $${seat.price}`;
-      }
-
-      button.textContent = String(seat.seatNumber);
-      button.dataset.row = String(seat.row);
-      button.dataset.seatNumber = String(seat.seatNumber);
-      button.dataset.price = String(seat.price);
-
-      if (isSeatBooked || seat.paying) {
+        button.title = `${label} • ${isOwned ? 'Ваш билет' : 'Забронировано'}`;
         rowEl.appendChild(button);
         return;
       }
 
+      if (seat.paying) {
+        button.className = 'seat-btn paying';
+        button.disabled = true;
+        button.title = `${label} • Оплата в процессе`;
+        rowEl.appendChild(button);
+        return;
+      }
+
+      button.className = 'seat-btn available';
+      button.title = `${label} • $${seat.price}`;
+
+      if (selectedSeats.some((s) => s.eventId === event.id && s.row === seat.row && s.seatNumber === seat.seatNumber)) {
+        button.classList.add('selected');
+      }
+
       button.addEventListener('click', () => {
-        const candidate = {
-          eventId: event.id,
-          row: seat.row,
-          seatNumber: seat.seatNumber,
-          price: Number(seat.price || 0),
-          label: `${seat.row}${seat.seatNumber}`
-        };
+        const same = (s) => s.eventId === event.id && s.row === seat.row && s.seatNumber === seat.seatNumber;
 
-        const exists = selectedSeats.some((item) => item.eventId === event.id && item.row === seat.row && item.seatNumber === seat.seatNumber);
-
-        if (exists) {
-          selectedSeats = selectedSeats.filter((item) => !(item.eventId === event.id && item.row === seat.row && item.seatNumber === seat.seatNumber));
+        if (selectedSeats.some(same)) {
+          selectedSeats = selectedSeats.filter((s) => !same(s));
         } else {
-          selectedSeats.push(candidate);
+          selectedSeats.push({ eventId: event.id, row: seat.row, seatNumber: seat.seatNumber, price: Number(seat.price || 0), label });
         }
 
-        const selectedSeatNames = selectedSeats
-            .filter((item) => item && item.eventId === event.id)
-            .map((item) => `${item.row}${item.seatNumber}`);
-
-        selectedSeatLabel.textContent = selectedSeatNames.length ? selectedSeatNames.join(', ') : 'No seat selected';
-
-        document.querySelectorAll('.seat-btn').forEach((seatBtn) => {
-          const rowValue = seatBtn.dataset.row;
-          const seatNumberValue = Number(seatBtn.dataset.seatNumber);
-          const selected = selectedSeats.some((item) => item.eventId === event.id && item.row === rowValue && item.seatNumber === seatNumberValue);
-          seatBtn.classList.toggle('selected', selected);
+        $('selectedSeatLabel').textContent = selectedLabelFor(event);
+        seatMap.querySelectorAll('.seat-btn').forEach((btn) => {
+          const selected = selectedSeats.some((s) =>
+              s.eventId === event.id && s.row === btn.dataset.row && s.seatNumber === Number(btn.dataset.seatNumber));
+          btn.classList.toggle('selected', selected);
         });
-
-        if (buyTicketBtn) {
-          buyTicketBtn.disabled = selectedSeats.length === 0;
-          buyTicketBtn.textContent = selectedSeats.length > 0 ? `Buy ticket(s) (${selectedSeats.length})` : 'Buy ticket';
-        }
+        updateBuyButton();
       });
 
       rowEl.appendChild(button);
@@ -779,61 +385,28 @@ function openEventModal(event) {
     seatMap.appendChild(rowEl);
   });
 
-  const oldLegend =
-      document.querySelector('.seat-legend');
-
-  if (oldLegend) {
-    oldLegend.remove();
-  }
-
-  const legend =
-      document.createElement('div');
-
-  legend.className =
-      'seat-legend';
-
+  document.querySelector('.seat-legend')?.remove();
+  const legend = document.createElement('div');
+  legend.className = 'seat-legend';
   legend.innerHTML = `
-    <div class="seat-legend-item">
-      <span class="seat-legend-color free"></span>
-      <span>Свободно</span>
-    </div>
+    <div class="seat-legend-item"><span class="seat-legend-color free"></span><span>Свободно</span></div>
+    <div class="seat-legend-item"><span class="seat-legend-color selected"></span><span>Выбрано</span></div>
+    <div class="seat-legend-item"><span class="seat-legend-color booked"></span><span>Забронировано / оплачивается</span></div>`;
+  seatMap.parentElement.appendChild(legend);
 
-    <div class="seat-legend-item">
-      <span class="seat-legend-color selected"></span>
-      <span>Выбрано</span>
-    </div>
-
-    <div class="seat-legend-item">
-      <span class="seat-legend-color booked"></span>
-      <span>Забронировано / оплачивается</span>
-    </div>
-  `;
-
-  seatMap.parentElement.appendChild(
-      legend
-  );
-
-  modal.classList.remove('hidden');
-
-  modal.setAttribute(
-      'aria-hidden',
-      'false'
-  );
+  $('eventModal').classList.remove('hidden');
+  $('eventModal').setAttribute('aria-hidden', 'false');
 }
 
 function closeModal(modalId) {
-  const modal =
-      document.getElementById(modalId);
-
+  const modal = $(modalId);
   if (modal) {
     modal.classList.add('hidden');
-
-    modal.setAttribute(
-        'aria-hidden',
-        'true'
-    );
+    modal.setAttribute('aria-hidden', 'true');
   }
 }
+
+/* ---------- Session / JWT ---------- */
 
 function readCurrentUser() {
   try {
@@ -848,13 +421,9 @@ function readCurrentUser() {
 function decodeJwtPayload(token) {
   try {
     const payload = token.split('.')[1];
-    if (!payload) {
-      return null;
-    }
-
+    if (!payload) return null;
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    return JSON.parse(atob(padded));
+    return JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')));
   } catch (error) {
     return null;
   }
@@ -862,25 +431,14 @@ function decodeJwtPayload(token) {
 
 function isAccessTokenExpired(token) {
   const payload = decodeJwtPayload(token);
-  if (!payload || !payload.exp) {
-    return false;
-  }
-
+  if (!payload || !payload.exp) return false;
   return Date.now() >= payload.exp * 1000 - 30000;
 }
 
 async function ensureValidAccessToken() {
-  if (!currentUser?.accessToken) {
-    throw new Error('Authentication required');
-  }
-
-  if (!isAccessTokenExpired(currentUser.accessToken)) {
-    return currentUser.accessToken;
-  }
-
-  if (!currentUser.refreshToken) {
-    throw new Error('Session expired');
-  }
+  if (!currentUser?.accessToken) throw new Error('Authentication required');
+  if (!isAccessTokenExpired(currentUser.accessToken)) return currentUser.accessToken;
+  if (!currentUser.refreshToken) throw new Error('Session expired');
 
   const response = await fetch(`${USER_API_BASE}/api/users/refresh`, {
     method: 'POST',
@@ -899,6 +457,18 @@ async function ensureValidAccessToken() {
   return payload.accessToken;
 }
 
+function updateAuthButton() {
+  const btn = $('authToggleBtn');
+  if (!btn) return;
+  if (currentUser) {
+    btn.textContent = `Profile: ${currentUser.fullName || currentUser.email || 'User'}`;
+    btn.classList.add('is-user');
+  } else {
+    btn.textContent = 'Sign in';
+    btn.classList.remove('is-user');
+  }
+}
+
 function persistCurrentUser(user) {
   if (user) {
     user.role = decodeJwtPayload(user.accessToken)?.role || user.role || 'USER';
@@ -906,98 +476,56 @@ function persistCurrentUser(user) {
   currentUser = user;
 
   if (user) {
-    localStorage.setItem('pulsepass-user', JSON.stringify({
-      ...user,
-      accessToken: user.accessToken,
-      refreshToken: user.refreshToken
-    }));
+    localStorage.setItem('pulsepass-user', JSON.stringify(user));
   } else {
     localStorage.removeItem('pulsepass-user');
   }
 
-  const authToggleBtn = document.getElementById('authToggleBtn');
-
-  if (authToggleBtn) {
-    if (user) {
-      authToggleBtn.textContent = `Profile: ${user.fullName || user.email || 'User'}`;
-      authToggleBtn.classList.add('is-user');
-    } else {
-      authToggleBtn.textContent = 'Sign in';
-      authToggleBtn.classList.remove('is-user');
-    }
-  }
-
+  updateAuthButton();
   updateAdminPanelVisibility();
 }
 
 function logoutUser() {
   currentUser = null;
+  ownedSeats = new Map();
   localStorage.removeItem('pulsepass-user');
-  const authToggleBtn = document.getElementById('authToggleBtn');
-  if (authToggleBtn) {
-    authToggleBtn.textContent = 'Sign in';
-    authToggleBtn.classList.remove('is-user');
-  }
+  updateAuthButton();
 
-  const authStatus = document.getElementById('authStatus');
+  const authStatus = $('authStatus');
   if (authStatus) {
     authStatus.textContent = 'Вы вышли из системы.';
     authStatus.classList.add('visible');
   }
 
-  const profileModal = document.getElementById('profileModal');
-  if (profileModal) {
-    profileModal.classList.add('hidden');
-    profileModal.setAttribute('aria-hidden', 'true');
-  }
-
+  closeModal('profileModal');
   updateAdminPanelVisibility();
 }
 
 function updateAdminPanelVisibility() {
   const isAdmin = currentUser?.role === 'ADMIN';
-  const toggle = document.getElementById('adminPanelToggle');
-  const panel = document.getElementById('adminPanel');
-
-  toggle?.classList.toggle('hidden', !isAdmin);
-  if (!isAdmin) {
-    panel?.classList.add('hidden');
-  }
+  $('adminPanelToggle')?.classList.toggle('hidden', !isAdmin);
+  if (!isAdmin) $('adminPanel')?.classList.add('hidden');
 }
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  })[character]);
-}
+/* ---------- Admin panel ---------- */
 
 function formatDateTimeInput(value) {
   const date = value ? new Date(value) : new Date(Date.now() + 30 * 86400000);
-  if (!value) {
-    date.setHours(19, 30, 0, 0);
-  }
-  const pad = (part) => String(part).padStart(2, '0');
+  if (!value) date.setHours(19, 30, 0, 0);
+  const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function showAdminStatus(message, isError = false) {
-  const status = document.getElementById('adminFormStatus');
-  if (!status) {
-    return;
-  }
+  const status = $('adminFormStatus');
+  if (!status) return;
   status.textContent = message;
   status.classList.toggle('error', isError);
 }
 
 function openAdminEventForm(eventToEdit = null) {
-  const form = document.getElementById('adminEventForm');
-  if (!form) {
-    return;
-  }
+  const form = $('adminEventForm');
+  if (!form) return;
 
   editingEventId = eventToEdit?.id || null;
   form.reset();
@@ -1005,10 +533,10 @@ function openAdminEventForm(eventToEdit = null) {
   form.elements.namedItem('artist').value = eventToEdit?.artist || '';
   form.elements.namedItem('location').value = eventToEdit?.location || '';
   form.elements.namedItem('eventDate').value = formatDateTimeInput(eventToEdit?.eventDate);
-  form.elements.namedItem('seatPrice').disabled = Boolean(eventToEdit);
-  document.getElementById('adminSeatPriceField')?.classList.toggle('hidden', Boolean(eventToEdit));
-  document.getElementById('adminFormTitle').textContent = eventToEdit ? 'Edit event' : 'New event';
-  document.getElementById('adminSaveEvent').textContent = eventToEdit ? 'Save changes' : 'Create event';
+  setSeatConfigVisible(!eventToEdit);
+  updateSeatSummary();
+  $('adminFormTitle').textContent = eventToEdit ? 'Edit event' : 'New event';
+  $('adminSaveEvent').textContent = eventToEdit ? 'Save changes' : 'Create event';
   showAdminStatus('');
   form.classList.remove('hidden');
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1016,63 +544,112 @@ function openAdminEventForm(eventToEdit = null) {
 
 function closeAdminEventForm() {
   editingEventId = null;
-  document.getElementById('adminEventForm')?.classList.add('hidden');
-  document.getElementById('adminSeatPriceField')?.classList.remove('hidden');
-  const priceInput = document.querySelector('#adminEventForm [name="seatPrice"]');
-  if (priceInput) {
-    priceInput.disabled = false;
-  }
+  $('adminEventForm')?.classList.add('hidden');
+  setSeatConfigVisible(true);
   showAdminStatus('');
 }
 
 function renderAdminEvents(events) {
-  const list = document.getElementById('adminEventList');
-  if (!list) {
-    return;
-  }
+  const list = $('adminEventList');
+  if (!list) return;
 
   list.innerHTML = events.length
       ? events.map((event) => `
         <article class="admin-event-row">
           <div class="admin-event-summary">
             <strong>${escapeHtml(event.name)}</strong>
-            <span>${escapeHtml(event.artist)} · ${escapeHtml(event.location)} · ${new Date(event.eventDate).toLocaleString()}</span>
+            <span>${escapeHtml(event.artist)} · ${escapeHtml(event.location)} · ${escapeHtml(new Date(event.eventDate).toLocaleString())}</span>
             <span>${event.seats?.length || 0} seats</span>
           </div>
           <div class="admin-event-actions">
             <button type="button" data-admin-edit="${escapeHtml(event.id)}">Edit</button>
             <button type="button" data-admin-delete="${escapeHtml(event.id)}">Unpublish</button>
           </div>
-        </article>
-      `).join('')
+        </article>`).join('')
       : '<p class="empty-state">No events to manage.</p>';
 }
 
 async function loadAdminEvents() {
-  if (currentUser?.role !== 'ADMIN') {
-    return;
-  }
+  if (currentUser?.role !== 'ADMIN') return;
 
-  const list = document.getElementById('adminEventList');
-  if (list) {
-    list.innerHTML = '<p class="empty-state">Loading events…</p>';
-  }
+  const list = $('adminEventList');
+  if (list) list.innerHTML = '<p class="empty-state">Loading events…</p>';
 
   try {
     const accessToken = await ensureValidAccessToken();
-    const response = await fetch(`${API_BASE}/api/events`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    });
-    if (!response.ok) {
-      throw new Error(`Could not load events (HTTP ${response.status})`);
-    }
+    const response = await fetch(`${API_BASE}/api/events`, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!response.ok) throw new Error(`Could not load events (HTTP ${response.status})`);
     adminEvents = await response.json();
     renderAdminEvents(adminEvents);
   } catch (error) {
-    if (list) {
-      list.innerHTML = `<p class="empty-state">${escapeHtml(error.message || 'Could not load events.')}</p>`;
+    if (list) list.innerHTML = `<p class="empty-state">${escapeHtml(error.message || 'Could not load events.')}</p>`;
+  }
+}
+
+const MAX_SEATS = 500;
+
+
+function toRowLabel(rowIndex) {
+  let label = '';
+  let value = rowIndex;
+  do {
+    label = String.fromCharCode(65 + (value % 26)) + label;
+    value = Math.floor(value / 26) - 1;
+  } while (value >= 0);
+  return label;
+}
+
+function readSeatConfig() {
+  const f = $('adminEventForm').elements;
+  return {
+    rows: Number(f.namedItem('seatRows').value),
+    perRow: Number(f.namedItem('seatsPerRow').value),
+    base: Number(f.namedItem('seatPrice').value),
+    step: Number(f.namedItem('rowPriceStep').value) || 0
+  };
+}
+
+function seatConfigError({ rows, perRow, base, step }) {
+  if (!Number.isInteger(rows) || rows < 1 || !Number.isInteger(perRow) || perRow < 1) {
+    return 'Укажите целое число рядов и мест в ряду';
+  }
+  if (rows * perRow > MAX_SEATS) return `Максимум ${MAX_SEATS} мест (сейчас ${rows * perRow})`;
+  if (!(base > 0) || step < 0) return 'Цена должна быть больше 0, шаг цены — не меньше 0';
+  return '';
+}
+
+function buildSeats({ rows, perRow, base, step }) {
+  const seats = [];
+  for (let r = 0; r < rows; r++) {
+    const price = Math.round((base + r * step) * 100) / 100;
+    for (let n = 1; n <= perRow; n++) {
+      seats.push({ row: toRowLabel(r), seatNumber: n, price });
     }
   }
+  return seats;
+}
+
+function setSeatConfigVisible(visible) {
+  const box = $('adminSeatConfig');
+  if (!box) return;
+  box.classList.toggle('hidden', !visible);
+  box.querySelectorAll('input').forEach((input) => { input.disabled = !visible; });
+}
+
+function updateSeatSummary() {
+  const summary = $('adminSeatSummary');
+  if (!summary) return;
+  const config = readSeatConfig();
+  const error = seatConfigError(config);
+  summary.classList.toggle('error', Boolean(error));
+  if (error) {
+    summary.textContent = error;
+    return;
+  }
+  const last = toRowLabel(config.rows - 1);
+  const max = config.base + (config.rows - 1) * config.step;
+  summary.textContent =
+      `${config.rows * config.perRow} мест · ряды A–${last} · цена $${config.base.toFixed(2)}–$${max.toFixed(2)}`;
 }
 
 async function saveAdminEvent(form) {
@@ -1085,13 +662,10 @@ async function saveAdminEvent(form) {
   };
 
   if (!editingEventId) {
-    const startingPrice = Number(formData.get('seatPrice'));
-    payload.seats = [
-      { row: 'A', seatNumber: 1, price: startingPrice },
-      { row: 'A', seatNumber: 2, price: startingPrice },
-      { row: 'B', seatNumber: 1, price: startingPrice + 15 },
-      { row: 'B', seatNumber: 2, price: startingPrice + 15 }
-    ];
+    const config = readSeatConfig();
+    const error = seatConfigError(config);
+    if (error) throw new Error(error);
+    payload.seats = buildSeats(config);
   }
 
   const isEditing = Boolean(editingEventId);
@@ -1099,10 +673,7 @@ async function saveAdminEvent(form) {
   const accessToken = await ensureValidAccessToken();
   const response = await fetch(endpoint, {
     method: isEditing ? 'PUT' : 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify(payload)
   });
 
@@ -1111,282 +682,187 @@ async function saveAdminEvent(form) {
     throw new Error(errorPayload.message || errorPayload.error || `Save failed (HTTP ${response.status})`);
   }
 
+  console.info('Event saved. Seats sent:', payload.seats ? payload.seats.length : 'unchanged');
   closeAdminEventForm();
   await Promise.all([loadEvents(), loadAdminEvents()]);
 }
 
+/* ---------- Profile & orders ---------- */
+
 async function loadUserProfile() {
-  if (!currentUser?.id) {
-    return;
-  }
+  if (!currentUser?.id) return;
+
+  const profileOrders = $('profileOrders');
 
   try {
     const authToken = await ensureValidAccessToken();
+    const headers = { Authorization: `Bearer ${authToken}` };
 
     const [profileResponse, ordersResponse] = await Promise.all([
-      fetch(`${USER_API_BASE}/api/users/profile/${currentUser.id}`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      }),
-      fetch(`${USER_API_BASE}/api/users/${currentUser.id}/orders`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      })
+      fetch(`${USER_API_BASE}/api/users/profile/${currentUser.id}`, { headers }),
+      fetch(`${USER_API_BASE}/api/users/${currentUser.id}/orders`, { headers })
     ]);
 
-    if (!profileResponse.ok) {
-      throw new Error('Failed to load user profile');
-    }
+    if (!profileResponse.ok) throw new Error('Failed to load user profile');
 
     const profile = await profileResponse.json();
     const orders = ordersResponse.ok ? await ordersResponse.json() : [];
 
-    const profileName = document.getElementById('profileName');
-    const profileEmail = document.getElementById('profileEmail');
-    const profileSince = document.getElementById('profileSince');
-    const profileOrders = document.getElementById('profileOrders');
+    $('profileName').textContent = profile.fullName || profile.email || 'User';
+    $('profileEmail').textContent = profile.email || '—';
+    $('profileSince').textContent = profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : '—';
 
-    if (profileName) {
-      profileName.textContent = profile.fullName || profile.email || 'User';
+    if (!profileOrders) return;
+
+    if (!orders.length) {
+      profileOrders.innerHTML = '<div class="empty-orders">У вас пока нет заказов. После покупки билеты появятся здесь.</div>';
+      return;
     }
 
-    if (profileEmail) {
-      profileEmail.textContent = profile.email || '—';
-    }
+    profileOrders.innerHTML = orders.map((order) => {
+      const seatLabel = String(order.seatLabel || 'Место');
+      const row = seatLabel.replace(/\d+$/, '');
+      const seatNumber = Number(seatLabel.replace(/\D/g, '')) || 0;
+      const eventId = order.eventId || '';
 
-    if (profileSince) {
-      const createdAt = profile.createdAt ? new Date(profile.createdAt) : null;
-      profileSince.textContent = createdAt ? createdAt.toLocaleDateString() : '—';
-    }
-
-    if (profileOrders) {
-      if (!orders.length) {
-        profileOrders.innerHTML = '<div class="empty-orders">У вас пока нет заказов. После покупки билеты появятся здесь.</div>';
-        return;
-      }
-
-      profileOrders.innerHTML = orders.map((order) => {
-        const seatLabel = String(order.seatLabel || 'Место');
-        const row = seatLabel.replace(/\d+$/, '');
-        const seatNumber = Number(seatLabel.replace(/\D/g, '')) || 0;
-        const eventId = order.eventId || order.event?.id || selectedEvent?.id || '';
-
-        return `
-        <div class="order-item" data-order-event-id="${eventId}" data-order-seat-label="${seatLabel}">
+      return `
+        <div class="order-item">
           <div>
-            <strong>${order.eventName || 'Мероприятие'}</strong>
-            <small>${seatLabel} • ${new Date(order.purchasedAt).toLocaleDateString()}</small>
+            <strong>${escapeHtml(order.eventName || 'Мероприятие')}</strong>
+            <small>${escapeHtml(seatLabel)} • ${escapeHtml(new Date(order.purchasedAt).toLocaleDateString())}</small>
           </div>
           <div class="order-actions">
             <div class="ticket-pill">$${Number(order.totalPrice || 0).toFixed(2)}</div>
-            <button class="return-order-btn" type="button" data-order-event-id="${eventId}" data-order-seat-row="${row}" data-order-seat-number="${seatNumber}">
-              Вернуть
-            </button>
+            <button class="return-order-btn" type="button"
+                    data-order-event-id="${escapeHtml(eventId)}"
+                    data-order-seat-row="${escapeHtml(row)}"
+                    data-order-seat-number="${seatNumber}">Вернуть</button>
           </div>
-        </div>
-      `;
-      }).join('');
+        </div>`;
+    }).join('');
 
-      profileOrders.querySelectorAll('.return-order-btn').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const eventId = button.dataset.orderEventId;
-          const row = button.dataset.orderSeatRow;
-          const seatNumber = Number(button.dataset.orderSeatNumber || 0);
+    profileOrders.querySelectorAll('.return-order-btn').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const eventId = button.dataset.orderEventId;
+        const row = button.dataset.orderSeatRow;
+        const seatNumber = Number(button.dataset.orderSeatNumber || 0);
+        if (!eventId || !row || !seatNumber) return;
 
-          if (!eventId || !row || !seatNumber) {
-            return;
-          }
+        const event = allEvents.find((item) => String(item.id) === String(eventId));
+        if (!event) {
+          showPaymentNotification(false, 'Мероприятие не найдено', 'Не удалось найти событие для возврата.');
+          return;
+        }
 
-          const event = allEvents.find((item) => String(item.id) === String(eventId));
-
-          if (!event) {
-            showPaymentNotification(false, 'Мероприятие не найдено', 'Не удалось найти событие для возврата.');
-            return;
-          }
-
-          await ticketReturnClicked(event, row, seatNumber);
-          await loadUserProfile();
-        });
+        await ticketReturnClicked(event, row, seatNumber);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await loadUserProfile();
       });
-    }
+    });
   } catch (error) {
     console.error('Failed to load profile:', error);
-    const profileOrders = document.getElementById('profileOrders');
-    if (profileOrders) {
-      profileOrders.innerHTML = '<div class="empty-orders">Не удалось загрузить ваши заказы.</div>';
-    }
+    if (profileOrders) profileOrders.innerHTML = '<div class="empty-orders">Не удалось загрузить ваши заказы.</div>';
   }
 }
 
 function openProfileModal() {
-  const modal = document.getElementById('profileModal');
-  if (!modal) {
-    return;
-  }
-
   if (!currentUser) {
     openAuthModal('login');
     return;
   }
-
   loadUserProfile();
-  modal.classList.remove('hidden');
-  modal.setAttribute('aria-hidden', 'false');
-}
-
-function closeProfileModal() {
-  const modal = document.getElementById('profileModal');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.setAttribute('aria-hidden', 'true');
-  }
+  $('profileModal').classList.remove('hidden');
+  $('profileModal').setAttribute('aria-hidden', 'false');
 }
 
 function openAuthModal(mode = 'login') {
   authMode = mode;
+  const modal = $('authModal');
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
 
-  const modal = document.getElementById('authModal');
-  const registerNameField = document.getElementById('registerNameField');
-  const submitBtn = document.getElementById('authSubmitBtn');
-  const authTabs = document.querySelectorAll('.auth-tab');
-
-  if (modal) {
-    modal.classList.remove('hidden');
-    modal.setAttribute('aria-hidden', 'false');
-  }
-
-  if (registerNameField) {
-    registerNameField.classList.toggle('hidden', mode !== 'register');
-  }
-
-  if (submitBtn) {
-    submitBtn.textContent = mode === 'register' ? 'Create account' : 'Sign in';
-  }
-
-  authTabs.forEach((tab) => {
-    const isActive = tab.dataset.authView === mode;
-    tab.classList.toggle('active', isActive);
+  $('registerNameField')?.classList.toggle('hidden', mode !== 'register');
+  $('authSubmitBtn').textContent = mode === 'register' ? 'Create account' : 'Sign in';
+  document.querySelectorAll('.auth-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.authView === mode);
   });
 }
 
-function closeAuthModal() {
-  const modal = document.getElementById('authModal');
+/* ---------- Owned seats (source of truth: /api/users/{id}/orders) ---------- */
 
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.setAttribute('aria-hidden', 'true');
-  }
-}
-
-function getUserTickets() {
-  try {
-    const storage = localStorage.getItem(USER_TICKETS_KEY);
-    return storage ? JSON.parse(storage) : {};
-  } catch (error) {
-    return {};
-  }
-}
-
-function saveUserTickets(data) {
-  localStorage.setItem(USER_TICKETS_KEY, JSON.stringify(data));
-}
-
-function isUserOwnedSeat(eventId, row, seatNumber) {
-  const eventTickets = getUserTickets()[String(eventId)] || [];
-  const seatKey = getSeatKey(row, seatNumber);
-
-  return eventTickets.some((ticket) => {
-    const parsed = parseSeatKey(ticket);
-    return parsed.row && parsed.seatNumber !== null && getSeatKey(parsed.row, parsed.seatNumber) === seatKey;
-  });
-}
-
-function addUserOwnedSeat(eventId, row, seatNumber) {
-  const tickets = getUserTickets();
-  const key = String(eventId);
-  const ticketKey = getSeatKey(row, seatNumber);
-  const current = Array.isArray(tickets[key]) ? tickets[key] : [];
-  const normalizedCurrent = current.map((item) => String(item).trim().toUpperCase());
-
-  if (!normalizedCurrent.includes(ticketKey.toUpperCase())) {
-    tickets[key] = [...current, ticketKey];
-    saveUserTickets(tickets);
-  }
-}
-
-function removeUserOwnedSeat(eventId, row, seatNumber) {
-  const tickets = getUserTickets();
-  const key = String(eventId);
-  const ticketKey = getSeatKey(row, seatNumber);
-  const current = Array.isArray(tickets[key]) ? tickets[key] : [];
-
-  tickets[key] = current.filter((item) => String(item).trim().toUpperCase() !== ticketKey.toUpperCase());
-
-  if (!tickets[key].length) {
-    delete tickets[key];
-  }
-
-  saveUserTickets(tickets);
-}
-
-async function ticketReturnClicked(event, row, seatNumber) {
-  const key = getSeatKey(row, seatNumber);
-  const isOwned = isUserOwnedSeat(event.id, row, seatNumber);
-
-  if (!isOwned || !currentUser?.id) {
+async function loadOwnedSeats() {
+  if (!currentUser?.id) {
+    ownedSeats = new Map();
     return;
   }
 
   try {
     const accessToken = await ensureValidAccessToken();
+    const response = await fetch(`${USER_API_BASE}/api/users/${currentUser.id}/orders`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const orders = await response.json();
+    const next = new Map();
+    orders.forEach((order) => {
+      const key = String(order.eventId);
+      if (!next.has(key)) next.set(key, new Set());
+      next.get(key).add(String(order.seatLabel || '').trim().toUpperCase());
+    });
+    ownedSeats = next;
+  } catch (error) {
+    console.warn('Could not load owned seats:', error);
+  }
+}
+
+function isUserOwnedSeat(eventId, row, seatNumber) {
+  return ownedSeats.get(String(eventId))?.has(getSeatKey(row, seatNumber)) || false;
+}
+
+function removeUserOwnedSeat(eventId, row, seatNumber) {
+  const key = String(eventId);
+  const seats = ownedSeats.get(key);
+  if (!seats) return;
+  seats.delete(getSeatKey(row, seatNumber));
+  if (!seats.size) ownedSeats.delete(key);
+}
+
+async function ticketReturnClicked(event, row, seatNumber) {
+  if (!isUserOwnedSeat(event.id, row, seatNumber) || !currentUser?.id) return;
+
+  try {
+    const accessToken = await ensureValidAccessToken();
     const response = await fetch(`${BOOKING_API_BASE}/api/bookings/return`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        eventId: event.id,
-        seatRow: row,
-        seatNumber: Number(seatNumber)
-      })
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ eventId: event.id, seatRow: row, seatNumber: Number(seatNumber) })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || 'Ticket return failed');
-    }
-
-    const seat = (event.seats || []).find((item) => item.row === row && Number(item.seatNumber) === Number(seatNumber));
-    if (seat) {
-      seat.status = 'AVAILABLE';
-      seat.available = true;
-      seat.booked = false;
-      delete seat.paying;
-    }
+    if (!response.ok) throw new Error((await response.text()) || 'Ticket return failed');
 
     removeUserOwnedSeat(event.id, row, seatNumber);
-    showPaymentNotification(true, 'Билет возвращён', `${key} снова доступен.`);
+    showPaymentNotification(true, 'Билет возвращён', `${getSeatKey(row, seatNumber)} снова доступен.`);
     await loadEvents();
-    openEventModal(event);
+    const refreshed = allEvents.find((e) => String(e.id) === String(event.id));
+    if (refreshed && !$('eventModal').classList.contains('hidden')) openEventModal(refreshed);
   } catch (error) {
     console.error('Ticket return failed:', error);
     showPaymentNotification(false, 'Возврат не выполнен', 'Билет не удалось вернуть сейчас.');
   }
 }
 
+/* ---------- Payment ---------- */
+
 function openPaymentModal() {
   if (!selectedEvent || selectedSeats.length === 0) {
     showPaymentNotification(false);
-
     return;
   }
 
   if (!currentUser) {
     openAuthModal('login');
-    const authStatus = document.getElementById('authStatus');
+    const authStatus = $('authStatus');
     if (authStatus) {
       authStatus.textContent = 'Please sign in before purchasing tickets.';
       authStatus.classList.add('visible');
@@ -1394,739 +870,25 @@ function openPaymentModal() {
     return;
   }
 
-  const summary =
-      document.getElementById(
-          'paymentSummary'
-      );
-
-  const total = selectedSeats.reduce((sum, seat) => sum + Number(seat.price || 0), 0);
-  const labels = selectedSeats.map((seat) => seat.label).join(', ');
-
-  summary.textContent =
-      `${labels} • $${total}`;
-
-  document
-      .getElementById('paymentModal')
-      .classList.remove('hidden');
+  const seats = selectedSeats.filter((s) => s.eventId === selectedEvent.id);
+  const total = seats.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  $('paymentSummary').textContent = `${seats.map((s) => s.label).join(', ')} • $${total}`;
+  $('paymentModal').classList.remove('hidden');
 }
 
-async function searchEvents(event) {
-  event.preventDefault();
-
-  const artist =
-      document
-          .getElementById('artistFilter')
-          .value
-          .trim();
-
-  const location =
-      document
-          .getElementById('locationFilter')
-          .value
-          .trim();
-
-  const date =
-      document
-          .getElementById('dateFilter')
-          .value;
-
-  const params =
-      new URLSearchParams();
-
-  if (artist) {
-    params.set(
-        'artist',
-        artist
-    );
-  }
-
-  if (location) {
-    params.set(
-        'location',
-        location
-    );
-  }
-
-  if (date) {
-    params.set(
-        'date',
-        date
-    );
-  }
-
-  try {
-    const response =
-        await fetch(
-            `${API_BASE}/api/events?${params.toString()}`
-        );
-
-    if (!response.ok) {
-      throw new Error(
-          `HTTP ${response.status}`
-      );
-    }
-
-    const events =
-        await response.json();
-
-    allEvents =
-        events.length
-            ? events
-            : [];
-
-    await hydrateSeatStatusesForEvents(allEvents);
-
-    renderEvents(allEvents);
-
-  } catch (error) {
-    console.error(
-        'Search failed:',
-        error
-    );
-
-    allEvents = [];
-    renderEvents([], 'Не удалось загрузить мероприятия. Проверьте доступность API.');
-  }
-}
-
-async function loadEvents() {
-  try {
-    const response =
-        await fetch(
-            `${API_BASE}/api/events`
-        );
-
-    if (!response.ok) {
-      throw new Error(
-          `HTTP ${response.status}`
-      );
-    }
-
-    allEvents =
-        await response.json();
-
-    await hydrateSeatStatusesForEvents(allEvents);
-
-    renderEvents(
-        allEvents
-    );
-
-  } catch (error) {
-    console.error(
-        'Failed to load events:',
-        error
-    );
-
-    allEvents = [];
-    renderEvents([], 'Не удалось загрузить мероприятия. Проверьте доступность API.');
-  }
-}
-
-function markSeatAsPaying(
-    eventId,
-    row,
-    seatNumber
-) {
+function markSeatAsPaying(eventId, row, seatNumber) {
   const id = String(eventId);
-
-  if (!seatsBeingPaid.has(id)) {
-    seatsBeingPaid.set(
-        id,
-        new Set()
-    );
-  }
-
-  seatsBeingPaid
-      .get(id)
-      .add(
-          getSeatKey(
-              row,
-              seatNumber
-          )
-      );
+  if (!seatsBeingPaid.has(id)) seatsBeingPaid.set(id, new Set());
+  seatsBeingPaid.get(id).add(getSeatKey(row, seatNumber));
 }
 
-function unmarkSeatAsPaying(
-    eventId,
-    row,
-    seatNumber
-) {
+function unmarkSeatAsPaying(eventId, row, seatNumber) {
   const id = String(eventId);
-
-  const eventSeats =
-      seatsBeingPaid.get(id);
-
-  if (!eventSeats) {
-    return;
-  }
-
-  eventSeats.delete(
-      getSeatKey(
-          row,
-          seatNumber
-      )
-  );
-
-  if (eventSeats.size === 0) {
-    seatsBeingPaid.delete(id);
-  }
+  const eventSeats = seatsBeingPaid.get(id);
+  if (!eventSeats) return;
+  eventSeats.delete(getSeatKey(row, seatNumber));
+  if (eventSeats.size === 0) seatsBeingPaid.delete(id);
 }
-
-function markSeatAsBooked(
-    event,
-    selectedSeat
-) {
-  if (!event || !selectedSeat) {
-    return;
-  }
-
-  const seat =
-      (event.seats || []).find(
-          (item) =>
-              String(item.row) ===
-              String(selectedSeat.row) &&
-              Number(item.seatNumber) ===
-              Number(selectedSeat.seatNumber)
-      );
-
-  if (!seat) {
-    return;
-  }
-
-  seat.status = 'BOOKED';
-  seat.booked = true;
-  seat.available = false;
-}
-
-function markSeatAsAvailable(
-    event,
-    selectedSeat
-) {
-  if (!event || !selectedSeat) {
-    return;
-  }
-
-  const seat =
-      (event.seats || []).find(
-          (item) =>
-              String(item.row) ===
-              String(selectedSeat.row) &&
-              Number(item.seatNumber) ===
-              Number(selectedSeat.seatNumber)
-      );
-
-  if (!seat) {
-    return;
-  }
-
-  delete seat.booked;
-
-  seat.available = true;
-  seat.status = 'AVAILABLE';
-}
-
-function rerenderCurrentEventSeats() {
-  if (!selectedEvent) {
-    return;
-  }
-
-  openEventModal(
-      selectedEvent
-  );
-}
-
-document.addEventListener(
-    'DOMContentLoaded',
-    () => {
-
-      addDynamicStyles();
-
-      const chips =
-          document.querySelectorAll(
-              '.chip'
-          );
-
-      const searchForm =
-          document.getElementById(
-              'searchForm'
-          );
-
-      const buyButton =
-          document.getElementById(
-              'buyTicketBtn'
-          );
-
-      const paymentForm =
-          document.getElementById(
-              'paymentForm'
-          );
-
-      const authToggleBtn =
-          document.getElementById(
-              'authToggleBtn'
-          );
-
-        const adminPanelToggle = document.getElementById('adminPanelToggle');
-        const adminPanel = document.getElementById('adminPanel');
-        const adminEventForm = document.getElementById('adminEventForm');
-        const adminEventList = document.getElementById('adminEventList');
-
-      const authForm =
-          document.getElementById(
-              'authForm'
-          );
-
-      const authTabs =
-          document.querySelectorAll(
-              '.auth-tab'
-          );
-
-      const authStatus =
-          document.getElementById(
-              'authStatus'
-          );
-
-      const authCloseButtons =
-          document.querySelectorAll(
-              '[data-close="auth"]'
-          );
-      const profileCloseButtons =
-          document.querySelectorAll(
-              '[data-close="profile"]'
-          );
-      const profileLogoutBtn =
-          document.getElementById('profileLogoutBtn');
-
-      currentUser = readCurrentUser();
-      persistCurrentUser(currentUser);
-
-      authCloseButtons.forEach((button) => {
-        button.addEventListener('click', () => closeAuthModal());
-      });
-
-      profileCloseButtons.forEach((button) => {
-        button.addEventListener('click', () => closeProfileModal());
-      });
-
-      if (profileLogoutBtn) {
-        profileLogoutBtn.addEventListener('click', () => {
-          logoutUser();
-          closeProfileModal();
-          if (authStatus) {
-            authStatus.textContent = 'Вы вышли из системы.';
-            authStatus.classList.add('visible');
-          }
-        });
-      }
-
-      if (authToggleBtn) {
-        authToggleBtn.addEventListener('click', () => {
-          if (currentUser) {
-            openProfileModal();
-            return;
-          }
-
-          openAuthModal('login');
-        });
-      }
-
-      authTabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          openAuthModal(tab.dataset.authView || 'login');
-        });
-      });
-
-      if (authForm) {
-        authForm.addEventListener('submit', async (event) => {
-          event.preventDefault();
-
-          const email = document.getElementById('authEmail')?.value?.trim();
-          const password = document.getElementById('authPassword')?.value || '';
-          const fullName = document.getElementById('registerName')?.value?.trim() || '';
-          const endpoint = authMode === 'register' ? 'register' : 'login';
-
-          try {
-            const response = await fetch(`${USER_API_BASE}/api/users/${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email,
-                fullName,
-                password
-              })
-            });
-
-            const payload = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-              throw new Error(payload.message || payload.error || 'Authentication failed');
-            }
-
-            persistCurrentUser(payload);
-
-            if (authStatus) {
-              authStatus.textContent = authMode === 'register'
-                  ? 'Регистрация успешна. Теперь можно покупать билеты.'
-                  : 'С возвращением!';
-              authStatus.classList.add('visible');
-            }
-
-            closeAuthModal();
-
-            if (selectedEvent && selectedSeats.length > 0) {
-              openPaymentModal();
-            }
-          } catch (error) {
-            console.error('Auth failed:', error);
-            if (authStatus) {
-              authStatus.textContent = error.message || 'Не удалось выполнить вход';
-              authStatus.classList.add('visible');
-            }
-          }
-        });
-      }
-
-      if (adminPanelToggle && adminPanel) {
-        adminPanelToggle.addEventListener('click', async () => {
-          const opening = adminPanel.classList.contains('hidden');
-          adminPanel.classList.toggle('hidden', !opening);
-          if (opening) {
-            await loadAdminEvents();
-            adminPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        });
-      }
-
-      document.getElementById('adminCreateEvent')?.addEventListener('click', () => {
-        openAdminEventForm();
-      });
-
-      document.getElementById('adminCancelEdit')?.addEventListener('click', closeAdminEventForm);
-
-      if (adminEventForm) {
-        adminEventForm.addEventListener('submit', async (event) => {
-          event.preventDefault();
-          const saveButton = document.getElementById('adminSaveEvent');
-          saveButton.disabled = true;
-          showAdminStatus('Saving event…');
-
-          try {
-            await saveAdminEvent(adminEventForm);
-          } catch (error) {
-            showAdminStatus(error.message || 'Could not save event.', true);
-          } finally {
-            saveButton.disabled = false;
-          }
-        });
-      }
-
-      if (adminEventList) {
-        adminEventList.addEventListener('click', async (event) => {
-          const editButton = event.target.closest('[data-admin-edit]');
-          if (editButton) {
-            const selectedAdminEvent = adminEvents.find(
-                (item) => String(item.id) === editButton.dataset.adminEdit
-            );
-            if (selectedAdminEvent) {
-              openAdminEventForm(selectedAdminEvent);
-            }
-            return;
-          }
-
-          const deleteButton = event.target.closest('[data-admin-delete]');
-          if (!deleteButton || !window.confirm('Unpublish this event?')) {
-            return;
-          }
-
-          deleteButton.disabled = true;
-          try {
-            const accessToken = await ensureValidAccessToken();
-            const response = await fetch(`${API_BASE}/api/events/${deleteButton.dataset.adminDelete}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${accessToken}` }
-            });
-            if (!response.ok) {
-              const errorPayload = await response.json().catch(() => ({}));
-              throw new Error(errorPayload.message || errorPayload.error || `Unpublish failed (HTTP ${response.status})`);
-            }
-            await Promise.all([loadEvents(), loadAdminEvents()]);
-          } catch (error) {
-            window.alert(error.message || 'Could not unpublish event.');
-            deleteButton.disabled = false;
-          }
-        });
-      }
-
-      chips.forEach((chip) => {
-        chip.addEventListener(
-            'click',
-            () => {
-
-              chips.forEach(
-                  (item) =>
-                      item.classList.remove(
-                          'active'
-                      )
-              );
-
-              chip.classList.add(
-                  'active'
-              );
-            }
-        );
-      });
-
-      if (searchForm) {
-        searchForm.addEventListener(
-            'submit',
-            searchEvents
-        );
-      }
-
-      if (buyButton) {
-        buyButton.disabled = true;
-        buyButton.addEventListener(
-            'click',
-            openPaymentModal
-        );
-      }
-
-      if (paymentForm) {
-        paymentForm.addEventListener(
-            'submit',
-            async (event) => {
-
-              event.preventDefault();
-
-              if (
-                  !selectedEvent ||
-                  selectedSeats.length === 0
-              ) {
-                showPaymentNotification(
-                    false
-                );
-
-                return;
-              }
-
-              const paymentEvent =
-                  selectedEvent;
-
-              const paymentSeats = selectedSeats
-                  .filter((seat) => seat && seat.eventId === paymentEvent.id)
-                  .map((seat) => ({ ...seat }));
-
-              const submitButton =
-                  paymentForm.querySelector(
-                      'button[type="submit"]'
-                  );
-
-              const originalText =
-                  submitButton.textContent;
-
-              submitButton.disabled =
-                  true;
-
-              submitButton.textContent =
-                  'Processing...';
-
-              paymentSeats.forEach((paymentSeat) => {
-                markSeatAsPaying(
-                    paymentEvent.id,
-                    paymentSeat.row,
-                    paymentSeat.seatNumber
-                );
-              });
-
-              if (selectedEvent) {
-                openEventModal(
-                    selectedEvent
-                );
-              }
-
-              try {
-                const results = [];
-
-                for (const paymentSeat of paymentSeats) {
-                  const accessToken = await ensureValidAccessToken();
-
-                  const bookingResponse = await fetch(`${BOOKING_API_BASE}/api/bookings`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({
-                      eventId: paymentEvent.id,
-                      seatRow: paymentSeat.row,
-                      seatNumber: paymentSeat.seatNumber
-                    })
-                  });
-
-                  if (!bookingResponse.ok) {
-                    const errorData = await bookingResponse.text();
-                    throw new Error(errorData || 'Booking failed');
-                  }
-
-                  const bookingData = await bookingResponse.json();
-                  const finalStatus = await pollBookingStatus(bookingData.bookingId);
-
-                  results.push({
-                    seat: paymentSeat,
-                    status: finalStatus
-                  });
-                }
-
-                const hasFailure = results.some((result) => result.status === 'CANCELLED');
-                const hasSuccess = results.some((result) => result.status === 'PAID');
-
-                if (hasSuccess) {
-                  if (currentUser?.id) {
-                    for (const { seat } of results) {
-                      addUserOwnedSeat(paymentEvent.id, seat.row, seat.seatNumber);
-                      try {
-                        const authToken = await ensureValidAccessToken();
-                        await fetch(`${USER_API_BASE}/api/users/orders`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken}`
-                          },
-                          body: JSON.stringify({
-                            eventId: paymentEvent.id,
-                            eventName: paymentEvent.name,
-                            seatLabel: `${seat.row}${seat.seatNumber}`,
-                            totalPrice: Number(seat.price || 0)
-                          })
-                        });
-                      } catch (orderError) {
-                        console.warn('Could not store order history:', orderError);
-                      }
-                    }
-                  }
-
-                  results.forEach(({ seat }) => {
-                    unmarkSeatAsPaying(paymentEvent.id, seat.row, seat.seatNumber);
-                    markSeatAsBooked(paymentEvent, seat);
-                  });
-                  showPaymentNotification(true, 'Платёж успешно завершён', 'Билет подтверждён.');
-                  closeModal('paymentModal');
-                  selectedSeat = null;
-                  selectedSeats = [];
-                  if (buyButton) {
-                    buyButton.disabled = true;
-                    buyButton.textContent = 'Buy ticket';
-                  }
-                  selectedEvent = null;
-                  loadEvents();
-                  return;
-                }
-
-                if (hasFailure) {
-                  showPaymentNotification(false);
-                  return;
-                }
-
-                showPaymentNotification(false);
-
-              } catch (error) {
-                console.error('Booking/payment error:', error);
-                showPaymentNotification(false);
-
-              } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = originalText;
-              }
-            }
-        );
-      }
-
-      document
-          .querySelectorAll(
-              '[data-close="event"]'
-          )
-          .forEach((button) => {
-
-            button.addEventListener(
-                'click',
-                () =>
-                    closeModal(
-                        'eventModal'
-                    )
-            );
-          });
-
-      document
-          .querySelectorAll(
-              '[data-close="payment"]'
-          )
-          .forEach((button) => {
-
-            button.addEventListener(
-                'click',
-                () =>
-                    closeModal(
-                        'paymentModal'
-                    )
-            );
-          });
-
-      const cardNumber =
-          document.getElementById(
-              'cardNumber'
-          );
-
-      if (cardNumber) {
-        cardNumber.addEventListener(
-            'input',
-            (event) => {
-
-              const value =
-                  event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 16);
-
-              event.target.value =
-                  value
-                      .replace(
-                          /(.{4})/g,
-                          '$1 '
-                      )
-                      .trim();
-            }
-        );
-      }
-
-      const expiry =
-          document.getElementById(
-              'expiry'
-          );
-
-      if (expiry) {
-        expiry.addEventListener(
-            'input',
-            (event) => {
-
-              let value =
-                  event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 4);
-
-              if (value.length > 2) {
-                value =
-                    `${value.slice(0, 2)}/` +
-                    `${value.slice(2)}`;
-              }
-
-              event.target.value =
-                  value;
-            }
-        );
-      }
-
-      loadEvents();
-    }
-);
 
 async function pollBookingStatus(bookingId) {
   const deadline = Date.now() + 20000;
@@ -2134,26 +896,314 @@ async function pollBookingStatus(bookingId) {
   while (Date.now() < deadline) {
     try {
       const accessToken = await ensureValidAccessToken();
-      const response = await fetch(
-          `${BOOKING_API_BASE}/api/bookings/${bookingId}/status`,
-          { headers: { 'Authorization': `Bearer ${accessToken}` } }
-      );
+      const response = await fetch(`${BOOKING_API_BASE}/api/bookings/${bookingId}/status`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
 
-      if (!response.ok) {
-        return 'PENDING';
-      }
+      if (!response.ok) return 'PENDING';
 
       const payload = await response.json();
-
-      if (payload.status === 'PAID' || payload.status === 'CANCELLED') {
-        return payload.status;
-      }
+      if (payload.status === 'PAID' || payload.status === 'CANCELLED') return payload.status;
     } catch (error) {
       console.error('Status poll error:', error);
     }
-
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   return 'PENDING';
 }
+
+async function handlePaymentSubmit(paymentForm) {
+  if (!selectedEvent || selectedSeats.length === 0) {
+    showPaymentNotification(false);
+    return;
+  }
+
+  const paymentEvent = selectedEvent;
+  const paymentSeats = selectedSeats.filter((s) => s.eventId === paymentEvent.id).map((s) => ({ ...s }));
+  const submitButton = paymentForm.querySelector('button[type="submit"]');
+  const originalText = submitButton.textContent;
+
+  submitButton.disabled = true;
+  submitButton.textContent = 'Processing...';
+
+  paymentSeats.forEach((s) => markSeatAsPaying(paymentEvent.id, s.row, s.seatNumber));
+  openEventModal(paymentEvent);
+
+  try {
+    const results = [];
+
+    for (const seat of paymentSeats) {
+      const accessToken = await ensureValidAccessToken();
+      const bookingResponse = await fetch(`${BOOKING_API_BASE}/api/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ eventId: paymentEvent.id, seatRow: seat.row, seatNumber: seat.seatNumber })
+      });
+
+      if (!bookingResponse.ok) throw new Error((await bookingResponse.text()) || 'Booking failed');
+
+      const bookingData = await bookingResponse.json();
+      results.push({ seat, status: await pollBookingStatus(bookingData.bookingId) });
+    }
+
+    const paid = results.filter((r) => r.status === 'PAID');
+
+    if (paid.length > 0) {
+      for (const { seat } of paid) {
+        try {
+          const authToken = await ensureValidAccessToken();
+          await fetch(`${USER_API_BASE}/api/users/orders`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify({
+              eventId: paymentEvent.id,
+              eventName: paymentEvent.name,
+              seatLabel: `${seat.row}${seat.seatNumber}`,
+              totalPrice: Number(seat.price || 0)
+            })
+          });
+        } catch (orderError) {
+          console.warn('Could not store order history:', orderError);
+        }
+      }
+      await loadOwnedSeats();
+
+      showPaymentNotification(true, 'Платёж успешно завершён', 'Билет подтверждён.');
+      closeModal('paymentModal');
+      selectedSeats = selectedSeats.filter((s) => s.eventId !== paymentEvent.id);
+      selectedEvent = null;
+      updateBuyButton();
+      return;
+    }
+
+    showPaymentNotification(false);
+  } catch (error) {
+    console.error('Booking/payment error:', error);
+    showPaymentNotification(false);
+  } finally {
+    paymentSeats.forEach((s) => unmarkSeatAsPaying(paymentEvent.id, s.row, s.seatNumber));
+    submitButton.disabled = false;
+    submitButton.textContent = originalText;
+    await loadEvents();
+    if (selectedEvent && !$('eventModal').classList.contains('hidden')) {
+      const refreshed = allEvents.find((e) => String(e.id) === String(selectedEvent.id));
+      if (refreshed) openEventModal(refreshed);
+    }
+  }
+}
+
+/* ---------- Loading & search ---------- */
+
+async function searchEvents(event) {
+  event.preventDefault();
+
+  const params = new URLSearchParams();
+  const artist = $('artistFilter').value.trim();
+  const location = $('locationFilter').value.trim();
+  const date = $('dateFilter').value;
+
+  if (artist) params.set('artist', artist);
+  if (location) params.set('location', location);
+  if (date) params.set('date', date);
+
+  try {
+    const response = await fetch(`${API_BASE}/api/events?${params.toString()}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    allEvents = await response.json();
+    await hydrateSeatStatusesForEvents(allEvents);
+    refreshView('Ничего не найдено.');
+  } catch (error) {
+    console.error('Search failed:', error);
+    allEvents = [];
+    refreshView('Не удалось загрузить мероприятия. Проверьте доступность API.');
+  }
+}
+
+async function loadEvents() {
+  try {
+    const response = await fetch(`${API_BASE}/api/events`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    allEvents = await response.json();
+    await hydrateSeatStatusesForEvents(allEvents);
+    refreshView();
+  } catch (error) {
+    console.error('Failed to load events:', error);
+    allEvents = [];
+    refreshView('Не удалось загрузить мероприятия. Проверьте доступность API.');
+  }
+}
+
+/* ---------- Init ---------- */
+
+document.addEventListener('DOMContentLoaded', () => {
+  currentUser = readCurrentUser();
+  persistCurrentUser(currentUser);
+
+
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-open-event]');
+    if (!trigger) return;
+    const found = allEvents.find((item) => String(item.id) === trigger.dataset.openEvent);
+    if (found) openEventModal(found);
+  });
+
+
+  $('cityChips')?.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-city]');
+    if (!chip) return;
+    activeCity = chip.dataset.city;
+    renderCityChips();
+    renderEvents(getVisibleEvents());
+  });
+
+
+  ['auth', 'profile', 'event', 'payment'].forEach((name) => {
+    document.querySelectorAll(`[data-close="${name}"]`).forEach((button) => {
+      button.addEventListener('click', () => closeModal(`${name}Modal`));
+    });
+  });
+
+  $('profileLogoutBtn')?.addEventListener('click', () => {
+    logoutUser();
+    closeModal('profileModal');
+  });
+
+  $('authToggleBtn')?.addEventListener('click', () => {
+    if (currentUser) openProfileModal();
+    else openAuthModal('login');
+  });
+
+  document.querySelectorAll('.auth-tab').forEach((tab) => {
+    tab.addEventListener('click', () => openAuthModal(tab.dataset.authView || 'login'));
+  });
+
+  $('authForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const email = $('authEmail')?.value?.trim();
+    const password = $('authPassword')?.value || '';
+    const fullName = $('registerName')?.value?.trim() || '';
+    const endpoint = authMode === 'register' ? 'register' : 'login';
+    const authStatus = $('authStatus');
+
+    try {
+      const response = await fetch(`${USER_API_BASE}/api/users/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, fullName, password })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || payload.error || 'Authentication failed');
+
+      persistCurrentUser(payload);
+
+      if (authStatus) {
+        authStatus.textContent = authMode === 'register'
+            ? 'Регистрация успешна. Теперь можно покупать билеты.'
+            : 'С возвращением!';
+        authStatus.classList.add('visible');
+      }
+
+      await loadOwnedSeats();
+      closeModal('authModal');
+      if (selectedEvent && selectedSeats.length > 0) openPaymentModal();
+    } catch (error) {
+      console.error('Auth failed:', error);
+      if (authStatus) {
+        authStatus.textContent = error.message || 'Не удалось выполнить вход';
+        authStatus.classList.add('visible');
+      }
+    }
+  });
+
+
+  const adminPanel = $('adminPanel');
+  $('adminPanelToggle')?.addEventListener('click', async () => {
+    const opening = adminPanel.classList.contains('hidden');
+    adminPanel.classList.toggle('hidden', !opening);
+    if (opening) {
+      await loadAdminEvents();
+      adminPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+
+  $('adminCreateEvent')?.addEventListener('click', () => openAdminEventForm());
+  $('adminCancelEdit')?.addEventListener('click', closeAdminEventForm);
+  $('adminSeatConfig')?.addEventListener('input', updateSeatSummary);
+  updateSeatSummary();
+
+  $('adminEventForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const saveButton = $('adminSaveEvent');
+    saveButton.disabled = true;
+    showAdminStatus('Saving event…');
+    try {
+      await saveAdminEvent(event.currentTarget);
+    } catch (error) {
+      showAdminStatus(error.message || 'Could not save event.', true);
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+
+  $('adminEventList')?.addEventListener('click', async (event) => {
+    const editButton = event.target.closest('[data-admin-edit]');
+    if (editButton) {
+      const item = adminEvents.find((e) => String(e.id) === editButton.dataset.adminEdit);
+      if (item) openAdminEventForm(item);
+      return;
+    }
+
+    const deleteButton = event.target.closest('[data-admin-delete]');
+    if (!deleteButton || !window.confirm('Unpublish this event?')) return;
+
+    deleteButton.disabled = true;
+    try {
+      const accessToken = await ensureValidAccessToken();
+      const response = await fetch(`${API_BASE}/api/events/${deleteButton.dataset.adminDelete}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload.message || errorPayload.error || `Unpublish failed (HTTP ${response.status})`);
+      }
+      await Promise.all([loadEvents(), loadAdminEvents()]);
+    } catch (error) {
+      window.alert(error.message || 'Could not unpublish event.');
+      deleteButton.disabled = false;
+    }
+  });
+
+  $('searchForm')?.addEventListener('submit', searchEvents);
+
+  const buyButton = $('buyTicketBtn');
+  if (buyButton) {
+    buyButton.disabled = true;
+    buyButton.addEventListener('click', openPaymentModal);
+  }
+
+  const paymentForm = $('paymentForm');
+  paymentForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    handlePaymentSubmit(paymentForm);
+  });
+
+  $('cardNumber')?.addEventListener('input', (event) => {
+    const value = event.target.value.replace(/\D/g, '').slice(0, 16);
+    event.target.value = value.replace(/(.{4})/g, '$1 ').trim();
+  });
+
+  $('expiry')?.addEventListener('input', (event) => {
+    let value = event.target.value.replace(/\D/g, '').slice(0, 4);
+    if (value.length > 2) value = `${value.slice(0, 2)}/${value.slice(2)}`;
+    event.target.value = value;
+  });
+
+  loadOwnedSeats();
+  loadEvents();
+});
