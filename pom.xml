@@ -25,7 +25,10 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <lombok.version>1.18.34</lombok.version>
+        <mockito.version>5.23.0</mockito.version>
+        <byte-buddy.version>1.17.8</byte-buddy.version>
+
+        <lombok.version>1.18.46</lombok.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <spring-cloud.version>2023.0.2</spring-cloud.version>
     </properties>
